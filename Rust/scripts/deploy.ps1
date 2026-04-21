@@ -1,15 +1,15 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$VmIp
+    [string]$VmIp,
+
+    [string]$VmUser = "azureuser",
+    [string]$RemoteDir = "/opt/books-service",
+    [string]$HttpsPort = "443",
+    [string]$AcrName = "acrwebbench4sayzpoemqsyo"
 )
 
 $ErrorActionPreference = "Stop"
-
-$VmUser = "azureuser"
-$RemoteDir = "/opt/books-service"
-$HttpsPort = "443"
-$AcrName = "acrwebbench4sayzpoemqsyo"
 
 function Assert-Command {
     param([string]$Name)
@@ -79,25 +79,27 @@ Assert-Command "scp"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EnvFile = Join-Path $RepoRoot ".env"
 $ComposeFile = Join-Path $RepoRoot "compose.vm.yaml"
-$CollectorConfigFile = Join-Path $RepoRoot "otel-collector-config.yaml"
 $NginxConfigFile = Join-Path $RepoRoot "nginx.vm.conf"
 $Target = "$VmUser@$VmIp"
 
 Assert-Path $EnvFile
 Assert-Path $ComposeFile
-Assert-Path $CollectorConfigFile
 Assert-Path $NginxConfigFile
+
+Write-Host "Destroying any existing Compose stack in $RemoteDir..."
+Invoke-RemoteOptional "if [ -d '$RemoteDir' ] && [ -f '$RemoteDir/compose.yaml' ]; then cd '$RemoteDir' && docker compose down --remove-orphans --volumes; else true; fi" | Out-Null
+Invoke-RemoteOptional "project=`$(basename '$RemoteDir'); docker ps -aq --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker rm -f; docker network ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker network rm; docker volume ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker volume rm -f" | Out-Null
 
 Invoke-Remote "sudo mkdir -p '$RemoteDir' && sudo chown -R `$(id -u):`$(id -g) '$RemoteDir'"
 
 Copy-ToRemote $EnvFile "$RemoteDir/.env"
 Copy-ToRemote $ComposeFile "$RemoteDir/compose.yaml"
-Copy-ToRemote $CollectorConfigFile "$RemoteDir/otel-collector-config.yaml"
 Copy-ToRemote $NginxConfigFile "$RemoteDir/nginx.vm.conf"
 
+Invoke-Remote "chmod 600 '$RemoteDir/.env'"
 Invoke-Remote "mkdir -p '$RemoteDir/certs' '$RemoteDir/certbot-webroot'"
 Invoke-Remote "if ! command -v openssl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y openssl; fi"
-Invoke-Remote "if [ ! -f '$RemoteDir/certs/server.crt' ] || [ ! -f '$RemoteDir/certs/server.key' ]; then openssl req -x509 -nodes -newkey rsa:4096 -sha256 -days 365 -keyout '$RemoteDir/certs/server.key' -out '$RemoteDir/certs/server.crt' -subj '/CN=$VmIp' -addext 'subjectAltName=IP:$VmIp,DNS:localhost'; fi"
+Invoke-Remote "openssl req -x509 -nodes -newkey rsa:4096 -sha256 -days 365 -keyout '$RemoteDir/certs/server.key' -out '$RemoteDir/certs/server.crt' -subj '/CN=$VmIp' -addext 'subjectAltName=IP:$VmIp,DNS:localhost'"
 
 Invoke-Remote "az login --identity"
 Invoke-Remote "az acr login --name '$AcrName'"
@@ -126,4 +128,4 @@ else {
 Write-Host "Deployment completed."
 Write-Host "Health check: https://${VmIp}:$HttpsPort/health"
 Write-Host "For Let's Encrypt issuance and renewal, allow inbound TCP 80 to the VM. Allow inbound TCP 443 for service traffic."
-Write-Host "If Let's Encrypt was not installed, the generated certificate is self-signed, so use curl -k or trust /opt/books-service/certs/server.crt on the client."
+Write-Host "If Let's Encrypt was not installed, the generated certificate is self-signed, so use curl -k or trust $RemoteDir/certs/server.crt on the client."

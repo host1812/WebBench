@@ -8,7 +8,6 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
-COPY migrations ./migrations
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
@@ -22,8 +21,7 @@ WORKDIR /app
 COPY --from=builder /usr/local/bin/rust_backend_service /app/rust_backend_service
 COPY config ./config
 
-ENV APP__SERVER__HOST=0.0.0.0
-ENV APP__SERVER__PORT=8080
+ENV BOOKSVC_HTTP_ADDRESS=:8080
 
 EXPOSE 8080
 

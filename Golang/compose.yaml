@@ -15,23 +15,6 @@ services:
       timeout: 5s
       retries: 10
 
-  migrate:
-    image: migrate/migrate:v4.18.3
-    volumes:
-      - ./migrations:/migrations:ro
-    entrypoint:
-      [
-        "migrate",
-        "-path",
-        "/migrations",
-        "-database",
-        "${LOCAL_DATABASE_CONNECTION_STRING:?LOCAL_DATABASE_CONNECTION_STRING is required}"
-      ]
-    command: ["up"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   api:
     build:
       context: .
@@ -45,8 +28,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres-data:

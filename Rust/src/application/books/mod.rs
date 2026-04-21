@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub struct CreateBookInput {
     pub author_id: uuid::Uuid,
     pub title: String,
-    pub description: Option<String>,
+    pub isbn: String,
     pub published_year: Option<i32>,
 }
 
@@ -15,6 +15,6 @@ pub struct CreateBookInput {
 pub struct UpdateBookInput {
     pub author_id: uuid::Uuid,
     pub title: String,
-    pub description: Option<String>,
+    pub isbn: String,
     pub published_year: Option<i32>,
 }

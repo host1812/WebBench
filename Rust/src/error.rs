@@ -23,8 +23,6 @@ pub enum AppError {
     #[error(transparent)]
     AddressParse(#[from] std::net::AddrParseError),
     #[error(transparent)]
-    Migrate(#[from] sqlx::migrate::MigrateError),
-    #[error(transparent)]
     Sqlx(#[from] sqlx::Error),
 }
 
@@ -38,7 +36,6 @@ impl IntoResponse for AppError {
             | Self::Config(_)
             | Self::Io(_)
             | Self::AddressParse(_)
-            | Self::Migrate(_)
             | Self::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

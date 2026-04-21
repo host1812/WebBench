@@ -1,159 +1,96 @@
 # Deployment On Azure VM With Docker Compose
 
-This guide assumes:
+This guide assumes you already have an Azure VM, Docker Compose, an image in Azure Container Registry, and a managed PostgreSQL database outside this project. The VM runs only the API and nginx gateway containers. It does not run PostgreSQL and it does not apply migrations.
 
-- You already have an Azure VM.
-- Docker and Docker Compose are installed on the VM.
-- The service image already exists in Azure Container Registry.
-- PostgreSQL is managed outside this project, for example Azure Database for PostgreSQL.
-- The VM can reach the managed PostgreSQL endpoint over the network.
+## 1. VM Directory
 
-The VM only runs the API container. It does not run PostgreSQL.
-
-## 1. Directory Layout
-
-SSH into the VM and create a dedicated app directory:
+Create the app directory on the VM:
 
 ```bash
-sudo mkdir -p /opt/rust-backend-service
-sudo chown "$USER":"$USER" /opt/rust-backend-service
-cd /opt/rust-backend-service
+sudo mkdir -p /opt/books-service
+sudo chown "$USER":"$USER" /opt/books-service
+cd /opt/books-service
 ```
 
-Place these files there:
+The deployment directory should contain:
 
 ```text
-/opt/rust-backend-service/
-  docker-compose.yml
+/opt/books-service/
+  compose.yaml
+  nginx.vm.conf
   .env
+  certs/
+  certbot-webroot/
 ```
 
-You do not need to copy the Rust source code to the VM if the image is already in ACR. You can use this repository's `deployment.env.example` as a starting point for the VM `.env`, but never commit or publish the real `.env` file.
+The Rust source code is not required on the VM when the image already exists in ACR.
 
 ## 2. Environment File
 
-Create `/opt/rust-backend-service/.env`:
-
-```bash
-nano .env
-```
-
-Use this repository's `deployment.env.example` as the template. The final VM `.env` should look like this, with real values filled in:
+Create `/opt/books-service/.env` from [deployment.env.example](deployment.env.example). Do not commit the real `.env`.
 
 ```env
-API_IMAGE=yourregistry.azurecr.io/rust-backend-service:replace-with-version-tag
-
-APP__SERVER__HOST=0.0.0.0
-APP__SERVER__PORT=8080
-APP__DATABASE__CONNECTION_STRING=postgres://db_user:db_password@your-postgres.postgres.database.azure.com:5432/library?sslmode=require
-APP__DATABASE__MAX_CONNECTIONS=10
-APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP=false
-APP__OBSERVABILITY__SERVICE_NAME=rust_backend_service
-APP__OBSERVABILITY__ENVIRONMENT=production
-APP__OBSERVABILITY__LOG_FILTER=info,rust_backend_service=debug,tower_http=info
-APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING=InstrumentationKey=replace-me;IngestionEndpoint=https://replace-me.in.applicationinsights.azure.com/
+BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:replace-with-version-tag
+BOOKSVC_HTTP_ADDRESS=:8080
+BOOKSVC_DATABASE_CONNECTION_STRING=postgres://db_user:db_password@your-postgres.postgres.database.azure.com:5432/webbench?sslmode=require
+BOOKSVC_DATABASE_MAX_CONNECTIONS=10
+BOOKSVC_TELEMETRY_ENABLED=true
+BOOKSVC_TELEMETRY_SERVICE_NAME=books-service
+BOOKSVC_TELEMETRY_ENVIRONMENT=azure-vm
+BOOKSVC_TELEMETRY_OTLP_ENDPOINT=otel-collector:4318
+APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=replace-me;IngestionEndpoint=https://replace-me.in.applicationinsights.azure.com/
 ```
 
-Keep this file private:
+Protect it:
 
 ```bash
-chmod 600 .env
+chmod 600 /opt/books-service/.env
 ```
 
-Important: `APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP=false` keeps the API from automatically changing the managed database every time the container starts. Migrations are applied explicitly with a one-off command.
+For local Docker Compose, [docker-compose.yml](docker-compose.yml) maps the API to `LOCAL_DATABASE_CONNECTION_STRING` so it connects to the local PostgreSQL container. For VM deployment, [compose.vm.yaml](compose.vm.yaml) uses `BOOKSVC_DATABASE_CONNECTION_STRING` for managed PostgreSQL.
 
-## 3. Compose File
+## 3. Compose Files
 
-Create `/opt/rust-backend-service/docker-compose.yml`:
+Use [compose.vm.yaml](compose.vm.yaml) on the VM as `/opt/books-service/compose.yaml`. It starts:
+
+- `api`: the Rust service, exposed only inside the Docker network.
+- `gateway`: nginx on ports `80` and `443` for SSL termination.
+
+The nginx config is [nginx.vm.conf](nginx.vm.conf). The gateway proxies HTTPS traffic to `api:8080`, so keep `BOOKSVC_HTTP_ADDRESS=:8080` unless you also update nginx.
+
+## 4. Deploy With Script
+
+From your local repository root, create a private `.env` with the VM values, then run:
+
+```powershell
+.\scripts\deploy-vm.ps1 -VmIp "<vm-public-ip>"
+```
+
+The script:
+
+- Requires local `ssh` and `scp`.
+- Copies `.env`, `compose.vm.yaml`, and `nginx.vm.conf` to `/opt/books-service`.
+- Destroys the existing remote Compose stack first with `docker compose down --remove-orphans --volumes` and removes leftover Compose resources for that project.
+- Generates a self-signed certificate before startup.
+- Logs into Azure with the VM managed identity.
+- Logs into ACR.
+- Pulls the configured `BOOKSVC_IMAGE`.
+- Starts `gateway`, which starts `api`.
+- Tries to replace the self-signed certificate with a Let's Encrypt certificate.
+
+The script does not run migrations.
+
+## 5. Manual Deployment
+
+If deploying manually:
 
 ```bash
-nano docker-compose.yml
-```
-
-Use this content:
-
-```yaml
-services:
-  api:
-    image: ${API_IMAGE}
-    restart: unless-stopped
-    command: ["serve"]
-    environment:
-      APP__SERVER__HOST: ${APP__SERVER__HOST}
-      APP__SERVER__PORT: ${APP__SERVER__PORT}
-      APP__DATABASE__CONNECTION_STRING: ${APP__DATABASE__CONNECTION_STRING}
-      APP__DATABASE__MAX_CONNECTIONS: ${APP__DATABASE__MAX_CONNECTIONS}
-      APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP: ${APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP}
-      APP__OBSERVABILITY__SERVICE_NAME: ${APP__OBSERVABILITY__SERVICE_NAME}
-      APP__OBSERVABILITY__ENVIRONMENT: ${APP__OBSERVABILITY__ENVIRONMENT}
-      APP__OBSERVABILITY__LOG_FILTER: ${APP__OBSERVABILITY__LOG_FILTER}
-      APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING: ${APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING}
-    ports:
-      - "8080:8080"
-
-  migrate:
-    image: ${API_IMAGE}
-    profiles: ["migration"]
-    command: ["migrate"]
-    environment:
-      APP__DATABASE__CONNECTION_STRING: ${APP__DATABASE__CONNECTION_STRING}
-      APP__DATABASE__MAX_CONNECTIONS: ${APP__DATABASE__MAX_CONNECTIONS}
-      APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP: false
-      APP__OBSERVABILITY__SERVICE_NAME: ${APP__OBSERVABILITY__SERVICE_NAME}
-      APP__OBSERVABILITY__ENVIRONMENT: ${APP__OBSERVABILITY__ENVIRONMENT}
-      APP__OBSERVABILITY__LOG_FILTER: ${APP__OBSERVABILITY__LOG_FILTER}
-      APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING: ${APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING}
-```
-
-The `migrate` service is not started during normal `docker compose up -d` because it is behind the `migration` profile.
-
-## 4. Login To ACR
-
-If the VM has Azure CLI:
-
-```bash
-az login
-az acr login --name yourregistry
-```
-
-If the VM uses a managed identity with ACR pull permission:
-
-```bash
+cd /opt/books-service
 az login --identity
 az acr login --name yourregistry
-```
-
-Verify image access:
-
-```bash
-docker pull "$API_IMAGE"
-```
-
-## 5. Apply Migrations
-
-Apply migrations before starting a new API version:
-
-```bash
-cd /opt/rust-backend-service
+docker pull "$BOOKSVC_IMAGE"
 docker compose pull
-docker compose --profile migration run --rm migrate
-```
-
-This runs the same application image with the `migrate` command. The process connects to the configured managed PostgreSQL database and applies embedded `sqlx` migrations from the image.
-
-If the command succeeds, migrations are applied. If it fails, do not start or update the API until the migration issue is resolved.
-
-## 6. Start The API
-
-Start the API:
-
-```bash
-docker compose up -d api
-```
-
-Check status:
-
-```bash
+docker compose up -d gateway
 docker compose ps
 ```
 
@@ -161,128 +98,121 @@ Check logs:
 
 ```bash
 docker compose logs -f api
+docker compose logs -f gateway
 ```
 
-Verify health from the VM:
+Verify health:
 
 ```bash
-curl http://localhost:8080/health
+curl -k https://localhost/health
 ```
 
-Expected healthy response:
+The endpoint returns `200 OK` when the API and database are healthy, and `503 Service Unavailable` when the database check fails.
 
-```json
-{
-  "service": "rust_backend_service",
-  "status": "healthy",
-  "checks": {
-    "database": {
-      "status": "healthy",
-      "message": null
-    }
-  }
-}
+## 6. Database Schema
+
+This service does not run migrations. Before deploying an API version, make sure the managed PostgreSQL database already has the schema expected by that image.
+
+Current expected tables:
+
+```text
+public.authors
+  id uuid primary key
+  name text not null
+  bio text not null
+  created_at timestamptz not null
+  updated_at timestamptz not null
+
+public.books
+  id uuid primary key
+  author_id uuid not null references public.authors(id)
+  title text not null
+  isbn text not null
+  published_year int4 null
+  created_at timestamptz not null
+  updated_at timestamptz not null
 ```
 
-If the database check is unhealthy, verify:
-
-- The connection string is correct.
-- Azure PostgreSQL firewall allows the VM outbound IP.
-- The database user has permission to connect.
-- SSL mode is correct for Azure PostgreSQL, usually `sslmode=require`.
+If the schema changes, update the managed database first using your external schema-management process, then deploy a compatible API image.
 
 ## 7. Application Insights
 
-The service exports traces to Azure Application Insights when this variable is set:
+Telemetry is enabled when:
 
 ```env
-APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
+BOOKSVC_TELEMETRY_ENABLED=true
+APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
 ```
 
 Also set:
 
 ```env
-APP__OBSERVABILITY__SERVICE_NAME=rust_backend_service
-APP__OBSERVABILITY__ENVIRONMENT=production
+BOOKSVC_TELEMETRY_SERVICE_NAME=books-service
+BOOKSVC_TELEMETRY_ENVIRONMENT=azure-vm
+BOOKSVC_TELEMETRY_OTLP_ENDPOINT=otel-collector:4318
 ```
 
-Telemetry includes HTTP request spans, CQRS handler spans, repository spans, migration spans, startup events, health checks, and structured tracing events.
+Telemetry includes HTTP request spans, CQRS handler spans, repository spans, startup events, health checks, and structured tracing events. `BOOKSVC_TELEMETRY_OTLP_ENDPOINT` is accepted in configuration for compatibility with the deployment environment; the current Rust service exports directly to Application Insights using the configured connection string.
 
-Note: Microsoft currently does not provide an official direct Azure Monitor exporter for Rust. This service uses OpenTelemetry with the community `opentelemetry-application-insights` exporter. If you want a Microsoft-supported path, route OpenTelemetry to an OpenTelemetry Collector and export from there using supported Azure Monitor ingestion.
+Compose forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` to the API as both `APPLICATIONINSIGHTS_CONNECTION_STRING` and `BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING`. This keeps the VM `.env` stable even if an image expects the nested telemetry variable name.
 
-## 8. Normal Deployment Flow
+## 8. Normal Release Flow
 
-For each new image version:
+For each new image version, update `BOOKSVC_IMAGE` in `.env`:
+
+```env
+BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:2026-04-21.1
+```
+
+Then redeploy:
 
 ```bash
-cd /opt/rust-backend-service
+cd /opt/books-service
 docker compose pull
-docker compose --profile migration run --rm migrate
-docker compose up -d api
+docker compose up -d gateway
 docker compose logs -f api
 ```
 
-If you tag images immutably, update `API_IMAGE` in `.env` first:
-
-```env
-API_IMAGE=yourregistry.azurecr.io/rust-backend-service:2026-04-20.1
-```
-
-Then run the deployment flow above.
-
 ## 9. Rollback
 
-Set `API_IMAGE` in `.env` back to the previous image tag:
+Set `BOOKSVC_IMAGE` back to the previous image tag:
 
 ```env
-API_IMAGE=yourregistry.azurecr.io/rust-backend-service:previous-tag
+BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:previous-tag
 ```
 
-Then restart the API:
+Then restart:
 
 ```bash
-docker compose pull api
-docker compose up -d api
+cd /opt/books-service
+docker compose pull
+docker compose up -d gateway
 ```
 
-Database rollbacks are not automatic. If a migration is not backward-compatible, prepare a manual rollback migration or restore plan before applying it.
+Database rollbacks are not automatic. If a schema change is not backward-compatible, prepare a database restore or rollback plan before applying it.
 
 ## 10. Stop Or Restart
 
-Stop the API:
-
 ```bash
+cd /opt/books-service
 docker compose down
+docker compose restart api gateway
 ```
 
-Restart the API:
+## 11. Optional systemd Unit
 
-```bash
-docker compose restart api
-```
-
-## 11. Optional Auto-Start With systemd
-
-Docker restart policy usually handles VM reboots, but a systemd unit can make startup explicit.
-
-Create:
-
-```bash
-sudo nano /etc/systemd/system/rust-backend-service.service
-```
-
-Content:
+Docker restart policy usually handles VM reboots, but a systemd unit can make startup explicit:
 
 ```ini
 [Unit]
-Description=Rust Backend Service
+Description=Books Service
 Requires=docker.service
 After=docker.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/rust-backend-service
-ExecStart=/usr/bin/docker compose up -d api
+WorkingDirectory=/opt/books-service
+ExecStart=/usr/bin/docker compose up -d gateway
 ExecStop=/usr/bin/docker compose down
 RemainAfterExit=yes
 TimeoutStartSec=0
@@ -295,24 +225,7 @@ Enable it:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable rust-backend-service
-sudo systemctl start rust-backend-service
+sudo systemctl enable books-service
+sudo systemctl start books-service
+sudo systemctl status books-service
 ```
-
-Check status:
-
-```bash
-sudo systemctl status rust-backend-service
-```
-
-## 12. Migration Control Rules
-
-Use these rules for managed PostgreSQL:
-
-- Keep `APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP=false` in the API service.
-- Run migrations explicitly with `docker compose --profile migration run --rm migrate`.
-- Run migrations before starting the API image that depends on them.
-- Use immutable image tags instead of `latest` for predictable deployments.
-- Review every migration before applying it to production.
-- Make destructive migrations backward-compatible or schedule downtime.
-- Keep managed database backups enabled before applying production migrations.

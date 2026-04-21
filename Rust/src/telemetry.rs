@@ -58,6 +58,10 @@ pub fn init_tracing(config: &AppConfig) -> Result<TelemetryGuard, AppError> {
 }
 
 fn create_application_insights_telemetry(config: &AppConfig) -> Result<TelemetryGuard, AppError> {
+    if config.observability.telemetry_enabled == Some(false) {
+        return Ok(TelemetryGuard::disabled());
+    }
+
     let Some(connection_string) = config
         .observability
         .application_insights_connection_string

@@ -52,12 +52,7 @@ impl BookCommandService for BookCommandHandler {
         let author_id = AuthorId::from(input.author_id);
         ensure_author_exists(self.authors.as_ref(), author_id).await?;
 
-        let book = Book::create(
-            author_id,
-            input.title,
-            input.description,
-            input.published_year,
-        )?;
+        let book = Book::create(author_id, input.title, input.isbn, input.published_year)?;
         let created = self.commands.create(book).await?;
         Ok(created.into())
     }
@@ -77,12 +72,7 @@ impl BookCommandService for BookCommandHandler {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("book {book_id}")))?;
 
-        book.revise(
-            author_id,
-            input.title,
-            input.description,
-            input.published_year,
-        )?;
+        book.revise(author_id, input.title, input.isbn, input.published_year)?;
 
         let updated = self.commands.update(book).await?;
         Ok(updated.into())
@@ -141,14 +131,14 @@ mod tests {
             .create_book(CreateBookInput {
                 author_id: author_id().0,
                 title: "  Parable of the Sower  ".to_owned(),
-                description: Some("  Novel  ".to_owned()),
+                isbn: "  9780446675505  ".to_owned(),
                 published_year: Some(1993),
             })
             .await
             .unwrap();
 
         assert_eq!(book.title, "Parable of the Sower");
-        assert_eq!(book.description.as_deref(), Some("Novel"));
+        assert_eq!(book.isbn, "9780446675505");
         assert_eq!(books.created_count(), 1);
     }
 
@@ -162,7 +152,7 @@ mod tests {
             .create_book(CreateBookInput {
                 author_id: author_id().0,
                 title: "Book".to_owned(),
-                description: None,
+                isbn: "isbn".to_owned(),
                 published_year: None,
             })
             .await
@@ -183,7 +173,7 @@ mod tests {
                 UpdateBookInput {
                     author_id: author_id().0,
                     title: "  New Title  ".to_owned(),
-                    description: None,
+                    isbn: "new-isbn".to_owned(),
                     published_year: Some(2020),
                 },
             )
@@ -207,7 +197,7 @@ mod tests {
                 UpdateBookInput {
                     author_id: author_id().0,
                     title: "Missing".to_owned(),
-                    description: None,
+                    isbn: "isbn".to_owned(),
                     published_year: None,
                 },
             )
@@ -328,7 +318,7 @@ mod tests {
             id: book_id(),
             author_id: author_id(),
             title: title.to_owned(),
-            description: None,
+            isbn: "isbn".to_owned(),
             published_year: None,
             created_at: OffsetDateTime::UNIX_EPOCH,
             updated_at: OffsetDateTime::UNIX_EPOCH,

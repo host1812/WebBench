@@ -4,7 +4,6 @@ port = 8080
 
 [database]
 max_connections = 10
-run_migrations_on_startup = true
 
 [observability]
 log_filter = "info,rust_backend_service=debug,tower_http=info"

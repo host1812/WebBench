@@ -339,7 +339,7 @@ mod tests {
                 json!({
                     "author_id": author_id,
                     "title": "Kindred",
-                    "description": "Time travel novel",
+                    "isbn": "9780807083697",
                     "published_year": 1979
                 }),
             ))
@@ -381,7 +381,7 @@ mod tests {
                 json!({
                     "author_id": author_id,
                     "title": "Updated Book",
-                    "description": null,
+                    "isbn": "updated-isbn",
                     "published_year": 1980
                 }),
             ))
@@ -553,7 +553,7 @@ mod tests {
                     book_id(),
                     author_id.0,
                     "Book For Author",
-                    None,
+                    "author-book-isbn",
                     None,
                 )],
             })
@@ -569,7 +569,7 @@ mod tests {
                 book_id(),
                 author_id.0,
                 "Book For Author",
-                None,
+                "author-book-isbn",
                 None,
             )])
         }
@@ -588,7 +588,7 @@ mod tests {
                 book_id(),
                 input.author_id,
                 &input.title,
-                input.description,
+                &input.isbn,
                 input.published_year,
             ))
         }
@@ -606,7 +606,7 @@ mod tests {
                 book_id.0,
                 input.author_id,
                 &input.title,
-                input.description,
+                &input.isbn,
                 input.published_year,
             ))
         }
@@ -630,7 +630,7 @@ mod tests {
                 book_id(),
                 author_id(),
                 "Listed Book",
-                Some("From fake query service".to_owned()),
+                "listed-isbn",
                 Some(2024),
             )])
         }
@@ -642,7 +642,7 @@ mod tests {
                 book_id.0,
                 author_id(),
                 "Detailed Book",
-                None,
+                "detailed-isbn",
                 Some(2025),
             ))
         }
@@ -662,14 +662,14 @@ mod tests {
         id: Uuid,
         author_id: Uuid,
         title: &str,
-        description: Option<String>,
+        isbn: &str,
         published_year: Option<i32>,
     ) -> BookDto {
         BookDto {
             id,
             author_id,
             title: title.to_owned(),
-            description,
+            isbn: isbn.to_owned(),
             published_year,
             created_at: timestamp(),
             updated_at: timestamp(),

@@ -8,5 +8,6 @@ coverage.out
 Dockerfile
 compose.yaml
 compose.vm.yaml
+db-migrations/
 otel-collector-config.yaml
 README.md

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$RegistryName = "acrwebbench-dub0bzb9fqcqhehf.azurecr.io",
+    [string]$RegistryName = "acrwebbench4sayzpoemqsyo.azurecr.io",
 
     [string]$ImageName = "books-service-rust",
 

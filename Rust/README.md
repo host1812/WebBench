@@ -4,14 +4,14 @@ Basic REST backend for `authors` and `books` using:
 
 - `axum` for HTTP
 - `tokio` for async runtime
-- `sqlx` for PostgreSQL access and migrations
+- `sqlx` for PostgreSQL access
 - `config` + TOML for typed configuration
 - layered `domain` / `application` / `infrastructure` / `presentation` modules
 - CQRS-style command and query services
 
 ## Configuration
 
-The service loads `config/default.toml` and then applies optional environment overrides with the `APP__` prefix.
+The service loads `config/default.toml`, then applies environment overrides. Preferred runtime variables use the `BOOKSVC_*` names below. The older `APP__...` config names are still accepted as fallback overrides.
 
 Create a local `.env` from the template before running Docker Compose:
 
@@ -24,18 +24,38 @@ Then edit `.env` and replace placeholder secrets.
 PowerShell examples for running without Docker:
 
 ```powershell
-$env:APP__DATABASE__CONNECTION_STRING = "postgres://user:password@localhost:5432/library"
-$env:APP__SERVER__PORT = "8081"
+$env:BOOKSVC_DATABASE_CONNECTION_STRING = "postgres://user:password@localhost:5432/books?sslmode=disable"
+$env:BOOKSVC_HTTP_ADDRESS = ":8081"
 ```
 
 Enable Azure Application Insights export:
 
 ```powershell
-$env:APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING = "InstrumentationKey=...;IngestionEndpoint=..."
-$env:APP__OBSERVABILITY__ENVIRONMENT = "production"
+$env:BOOKSVC_TELEMETRY_ENABLED = "true"
+$env:BOOKSVC_TELEMETRY_SERVICE_NAME = "books-service"
+$env:BOOKSVC_TELEMETRY_ENVIRONMENT = "production"
+$env:APPLICATIONINSIGHTS_CONNECTION_STRING = "InstrumentationKey=...;IngestionEndpoint=..."
 ```
 
 The implementation uses OpenTelemetry with a community Application Insights exporter. Microsoft does not currently provide an official direct Azure Monitor exporter for Rust.
+
+Supported preferred environment variables:
+
+```env
+LOCAL_DATABASE_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/books?sslmode=disable
+BOOKSVC_HTTP_ADDRESS=:8080
+BOOKSVC_DATABASE_CONNECTION_STRING=postgres://user:password@host:5432/books?sslmode=require
+BOOKSVC_DATABASE_MAX_CONNECTIONS=10
+BOOKSVC_TELEMETRY_ENABLED=true
+BOOKSVC_TELEMETRY_SERVICE_NAME=books-service
+BOOKSVC_TELEMETRY_ENVIRONMENT=azure-vm
+BOOKSVC_TELEMETRY_OTLP_ENDPOINT=otel-collector:4318
+APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
+```
+
+If both database connection strings are present, `BOOKSVC_DATABASE_CONNECTION_STRING` wins. Local Docker Compose explicitly maps `LOCAL_DATABASE_CONNECTION_STRING` into the API container.
+
+Docker Compose also forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` as `BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING` for images that expect the nested `BOOKSVC_TELEMETRY_*` name.
 
 ## Endpoints
 
@@ -80,7 +100,7 @@ The endpoint returns `200 OK` when all checks are healthy and `503 Service Unava
 cargo run
 ```
 
-Migrations run automatically at startup.
+The service does not run database migrations. Provide a database that already has the expected schema.
 
 ## Docker
 

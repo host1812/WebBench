@@ -4,7 +4,7 @@ A basic Go backend service for managing authors and books with Gin, pgx, Viper, 
 
 ## Run
 
-1. Apply the PostgreSQL migrations from `migrations/`.
+1. Apply PostgreSQL migrations from `db-migrations/`.
 2. Create a local `.env` file from `.env.example`.
 3. Set `BOOKSVC_DATABASE_CONNECTION_STRING`.
    Docker Compose reads `.env` automatically; for direct `go run`, export the variable in your shell.
@@ -45,10 +45,24 @@ POSTGRES_PASSWORD=...
 LOCAL_DATABASE_CONNECTION_STRING=postgres://postgres:<password>@postgres:5432/books?sslmode=disable
 ```
 
-Build and start the service with PostgreSQL:
+Start PostgreSQL:
 
 ```bash
-docker compose up --build
+docker compose up -d postgres
+```
+
+Apply migrations:
+
+```powershell
+cd db-migrations
+.\scripts\migrate.ps1 up -DatabaseUrl "postgres://postgres:<password>@localhost:5432/books?sslmode=disable"
+cd ..
+```
+
+Build and start the API:
+
+```bash
+docker compose up --build api
 ```
 
 The compose setup:
@@ -56,13 +70,14 @@ The compose setup:
 - builds the Go service with an Alpine Go builder stage
 - runs the service from a distroless runtime image
 - starts PostgreSQL on `localhost:5432`
-- applies migrations with `golang-migrate`
 - exposes the API on `localhost:8080`
 
-Check migration state:
+Apply migrations with the separate migration project:
 
-```bash
-docker compose run --rm migrate version
+```powershell
+cd db-migrations
+.\scripts\migrate.ps1 up
+.\scripts\migrate.ps1 status
 ```
 
 Build only:

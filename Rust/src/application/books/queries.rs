@@ -192,7 +192,7 @@ mod tests {
             id: book_id(),
             author_id: author_id(),
             title: title.to_owned(),
-            description: None,
+            isbn: "isbn".to_owned(),
             published_year: Some(2024),
             created_at: OffsetDateTime::UNIX_EPOCH,
             updated_at: OffsetDateTime::UNIX_EPOCH,

@@ -22,7 +22,7 @@ use application::{
 use config::AppConfig;
 use error::AppError;
 use infrastructure::{
-    db::{create_pool, run_migrations},
+    db::create_pool,
     health::PostgresHealthCheck,
     persistence::{
         postgres_author_repository::PostgresAuthorRepository,
@@ -39,10 +39,6 @@ pub async fn run() -> Result<(), AppError> {
 
     info!("starting service");
     let pool = create_pool(&config.database).await?;
-    if config.database.run_migrations_on_startup {
-        info!("running database migrations on startup");
-        run_migrations(&pool).await?;
-    }
 
     let author_repository = Arc::new(PostgresAuthorRepository::new(pool.clone()));
     let book_repository = Arc::new(PostgresBookRepository::new(pool.clone()));
@@ -85,20 +81,6 @@ pub async fn run() -> Result<(), AppError> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-
-    Ok(())
-}
-
-#[tracing::instrument(name = "app.migrate", err)]
-pub async fn migrate() -> Result<(), AppError> {
-    let config = AppConfig::load()?;
-    let _telemetry = telemetry::init_tracing(&config)?;
-
-    info!("running database migrations");
-    let pool = create_pool(&config.database).await?;
-    run_migrations(&pool).await?;
-
-    info!("database migrations completed");
 
     Ok(())
 }

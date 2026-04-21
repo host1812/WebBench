@@ -28,15 +28,15 @@ impl BookCommandRepository for PostgresBookRepository {
     async fn create(&self, book: Book) -> Result<Book, AppError> {
         let row = sqlx::query_as::<_, BookRow>(
             r#"
-            INSERT INTO books (id, author_id, title, description, published_year, created_at, updated_at)
+            INSERT INTO books (id, author_id, title, isbn, published_year, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, author_id, title, description, published_year, created_at, updated_at
+            RETURNING id, author_id, title, isbn, published_year, created_at, updated_at
             "#,
         )
         .bind(book.id.0)
         .bind(book.author_id.0)
         .bind(&book.title)
-        .bind(&book.description)
+        .bind(&book.isbn)
         .bind(book.published_year)
         .bind(book.created_at)
         .bind(book.updated_at)
@@ -52,15 +52,15 @@ impl BookCommandRepository for PostgresBookRepository {
         let row = sqlx::query_as::<_, BookRow>(
             r#"
             UPDATE books
-            SET author_id = $2, title = $3, description = $4, published_year = $5, updated_at = $6
+            SET author_id = $2, title = $3, isbn = $4, published_year = $5, updated_at = $6
             WHERE id = $1
-            RETURNING id, author_id, title, description, published_year, created_at, updated_at
+            RETURNING id, author_id, title, isbn, published_year, created_at, updated_at
             "#,
         )
         .bind(book.id.0)
         .bind(book.author_id.0)
         .bind(&book.title)
-        .bind(&book.description)
+        .bind(&book.isbn)
         .bind(book.published_year)
         .bind(book.updated_at)
         .fetch_optional(&self.pool)
@@ -99,7 +99,7 @@ impl BookQueryRepository for PostgresBookRepository {
     async fn list(&self) -> Result<Vec<Book>, AppError> {
         let rows = sqlx::query_as::<_, BookRow>(
             r#"
-            SELECT id, author_id, title, description, published_year, created_at, updated_at
+            SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             ORDER BY title ASC
             "#,
@@ -114,7 +114,7 @@ impl BookQueryRepository for PostgresBookRepository {
     async fn list_by_author(&self, author_id: AuthorId) -> Result<Vec<Book>, AppError> {
         let rows = sqlx::query_as::<_, BookRow>(
             r#"
-            SELECT id, author_id, title, description, published_year, created_at, updated_at
+            SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             WHERE author_id = $1
             ORDER BY title ASC
@@ -131,7 +131,7 @@ impl BookQueryRepository for PostgresBookRepository {
     async fn get(&self, book_id: BookId) -> Result<Option<Book>, AppError> {
         let row = sqlx::query_as::<_, BookRow>(
             r#"
-            SELECT id, author_id, title, description, published_year, created_at, updated_at
+            SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             WHERE id = $1
             "#,
@@ -149,7 +149,7 @@ struct BookRow {
     id: Uuid,
     author_id: Uuid,
     title: String,
-    description: Option<String>,
+    isbn: String,
     published_year: Option<i32>,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
@@ -161,7 +161,7 @@ impl From<BookRow> for Book {
             id: BookId(value.id),
             author_id: AuthorId(value.author_id),
             title: value.title,
-            description: value.description,
+            isbn: value.isbn,
             published_year: value.published_year,
             created_at: value.created_at,
             updated_at: value.updated_at,

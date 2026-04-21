@@ -107,12 +107,14 @@ Invoke-RemoteChecked -Command 'docker pull grafana/k6'
 
 $dockerArgs = @(
     'docker run --rm',
+    '--user "$(id -u):$(id -g)"',
     '-e', "BASE_URL=$(ConvertTo-RemoteShellArg $BaseUrl)",
     '-e', "SKIP_TLS_VERIFY=$(ConvertTo-RemoteShellArg $SkipTlsValue)",
     '-e', "K6_INSECURE_SKIP_TLS_VERIFY=$(ConvertTo-RemoteShellArg $SkipTlsValue)",
     '-e', "VUS=$(ConvertTo-RemoteShellArg ([string]$Vus))",
     '-e', "DURATION=$(ConvertTo-RemoteShellArg $Duration)",
     '-e', 'K6_WEB_DASHBOARD=true',
+    '-e', 'K6_WEB_DASHBOARD_PORT=-1',
     '-e', 'K6_WEB_DASHBOARD_EXPORT=/reports/books-read.html'
 )
 

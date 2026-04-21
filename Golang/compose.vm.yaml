@@ -10,21 +10,6 @@ services:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
     restart: unless-stopped
 
-  migrate:
-    image: migrate/migrate:v4.18.3
-    volumes:
-      - ./migrations:/migrations:ro
-    entrypoint:
-      [
-        "migrate",
-        "-path",
-        "/migrations",
-        "-database",
-        "${BOOKSVC_DATABASE_CONNECTION_STRING:?BOOKSVC_DATABASE_CONNECTION_STRING is required}"
-      ]
-    command: ["up"]
-    restart: "no"
-
   api:
     image: "${BOOKSVC_IMAGE:?BOOKSVC_IMAGE is required}"
     env_file:

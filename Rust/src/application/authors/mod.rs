@@ -41,7 +41,7 @@ pub struct BookDto {
     pub id: Uuid,
     pub author_id: Uuid,
     pub title: String,
-    pub description: Option<String>,
+    pub isbn: String,
     pub published_year: Option<i32>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -67,7 +67,7 @@ impl From<Book> for BookDto {
             id: book.id.0,
             author_id: book.author_id.0,
             title: book.title,
-            description: book.description,
+            isbn: book.isbn,
             published_year: book.published_year,
             created_at: book.created_at,
             updated_at: book.updated_at,

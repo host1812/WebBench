@@ -32,7 +32,7 @@ impl AuthorCommandRepository for PostgresAuthorRepository {
         )
         .bind(author.id.0)
         .bind(&author.name)
-        .bind(&author.bio)
+        .bind(author.bio.as_deref().unwrap_or(""))
         .bind(author.created_at)
         .bind(author.updated_at)
         .fetch_one(&self.pool)
@@ -53,7 +53,7 @@ impl AuthorCommandRepository for PostgresAuthorRepository {
         )
         .bind(author.id.0)
         .bind(&author.name)
-        .bind(&author.bio)
+        .bind(author.bio.as_deref().unwrap_or(""))
         .bind(author.updated_at)
         .fetch_optional(&self.pool)
         .await?;
@@ -122,7 +122,7 @@ impl AuthorQueryRepository for PostgresAuthorRepository {
 struct AuthorRow {
     id: Uuid,
     name: String,
-    bio: Option<String>,
+    bio: String,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
 }
@@ -132,7 +132,7 @@ impl From<AuthorRow> for Author {
         Self {
             id: AuthorId(value.id),
             name: value.name,
-            bio: value.bio,
+            bio: (!value.bio.trim().is_empty()).then_some(value.bio),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

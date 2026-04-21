@@ -34,7 +34,7 @@ pub struct Book {
     pub id: BookId,
     pub author_id: AuthorId,
     pub title: String,
-    pub description: Option<String>,
+    pub isbn: String,
     pub published_year: Option<i32>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
@@ -44,7 +44,7 @@ impl Book {
     pub fn create(
         author_id: AuthorId,
         title: String,
-        description: Option<String>,
+        isbn: String,
         published_year: Option<i32>,
     ) -> Result<Self, AppError> {
         validate_published_year(published_year)?;
@@ -54,7 +54,7 @@ impl Book {
             id: BookId::new(),
             author_id,
             title: normalize_required(title, "book title")?,
-            description: normalize_optional(description),
+            isbn: normalize_required(isbn, "book isbn")?,
             published_year,
             created_at: now,
             updated_at: now,
@@ -65,14 +65,14 @@ impl Book {
         &mut self,
         author_id: AuthorId,
         title: String,
-        description: Option<String>,
+        isbn: String,
         published_year: Option<i32>,
     ) -> Result<(), AppError> {
         validate_published_year(published_year)?;
 
         self.author_id = author_id;
         self.title = normalize_required(title, "book title")?;
-        self.description = normalize_optional(description);
+        self.isbn = normalize_required(isbn, "book isbn")?;
         self.published_year = published_year;
         self.updated_at = OffsetDateTime::now_utc();
 
@@ -106,13 +106,6 @@ fn normalize_required(value: String, field_name: &str) -> Result<String, AppErro
     Ok(trimmed.to_owned())
 }
 
-fn normalize_optional(value: Option<String>) -> Option<String> {
-    value.and_then(|inner| {
-        let trimmed = inner.trim();
-        (!trimmed.is_empty()).then(|| trimmed.to_owned())
-    })
-}
-
 fn validate_published_year(value: Option<i32>) -> Result<(), AppError> {
     if let Some(year) = value {
         if !(0..=9999).contains(&year) {
@@ -134,27 +127,27 @@ mod tests {
     use super::Book;
 
     #[test]
-    fn create_trims_title_and_empty_description() {
+    fn create_trims_title_and_isbn() {
         let author_id = author_id();
         let book = Book::create(
             author_id,
             "  The Left Hand of Darkness  ".to_owned(),
-            Some("   ".to_owned()),
+            "  9780441478125  ".to_owned(),
             Some(1969),
         )
         .expect("book should be valid");
 
         assert_eq!(book.author_id, author_id);
         assert_eq!(book.title, "The Left Hand of Darkness");
-        assert_eq!(book.description, None);
+        assert_eq!(book.isbn, "9780441478125");
         assert_eq!(book.published_year, Some(1969));
         assert_eq!(book.created_at, book.updated_at);
     }
 
     #[test]
     fn create_rejects_empty_title() {
-        let error =
-            Book::create(author_id(), " ".to_owned(), None, None).expect_err("title is invalid");
+        let error = Book::create(author_id(), " ".to_owned(), "isbn".to_owned(), None)
+            .expect_err("title is invalid");
 
         assert!(matches!(error, AppError::Validation(_)));
         assert_eq!(
@@ -164,9 +157,26 @@ mod tests {
     }
 
     #[test]
+    fn create_rejects_empty_isbn() {
+        let error = Book::create(author_id(), "Book".to_owned(), " ".to_owned(), None)
+            .expect_err("isbn is invalid");
+
+        assert!(matches!(error, AppError::Validation(_)));
+        assert_eq!(
+            error.to_string(),
+            "validation failed: book isbn cannot be empty"
+        );
+    }
+
+    #[test]
     fn create_rejects_out_of_range_year() {
-        let error = Book::create(author_id(), "Book".to_owned(), None, Some(10_000))
-            .expect_err("year is invalid");
+        let error = Book::create(
+            author_id(),
+            "Book".to_owned(),
+            "isbn".to_owned(),
+            Some(10_000),
+        )
+        .expect_err("year is invalid");
 
         assert!(matches!(error, AppError::Validation(_)));
         assert_eq!(
@@ -180,20 +190,26 @@ mod tests {
         let original_author_id = author_id();
         let new_author_id =
             AuthorId(Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap());
-        let mut book = Book::create(original_author_id, "Old".to_owned(), None, None).unwrap();
+        let mut book = Book::create(
+            original_author_id,
+            "Old".to_owned(),
+            "old-isbn".to_owned(),
+            None,
+        )
+        .unwrap();
         let original_updated_at = book.updated_at;
 
         book.revise(
             new_author_id,
             "  New  ".to_owned(),
-            Some("  Description  ".to_owned()),
+            "  new-isbn  ".to_owned(),
             Some(2024),
         )
         .unwrap();
 
         assert_eq!(book.author_id, new_author_id);
         assert_eq!(book.title, "New");
-        assert_eq!(book.description.as_deref(), Some("Description"));
+        assert_eq!(book.isbn, "new-isbn");
         assert_eq!(book.published_year, Some(2024));
         assert!(book.updated_at >= original_updated_at);
     }
