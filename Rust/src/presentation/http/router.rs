@@ -21,6 +21,14 @@ use crate::{
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .nest("/api/v1", resource_routes())
+        .merge(resource_routes())
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
+}
+
+fn resource_routes() -> Router<AppState> {
+    Router::new()
         .route("/authors", get(list_authors).post(create_author))
         .route(
             "/authors/{author_id}",
@@ -32,8 +40,6 @@ pub fn build_router(state: AppState) -> Router {
             "/books/{book_id}",
             get(get_book).put(update_book).delete(delete_book),
         )
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
 }
 
 #[tracing::instrument(name = "http.health", skip(state))]
@@ -232,6 +238,15 @@ mod tests {
 
     #[tokio::test]
     async fn author_routes_call_injected_services_and_return_json() {
+        assert_author_routes_call_injected_services_and_return_json("").await;
+    }
+
+    #[tokio::test]
+    async fn versioned_author_routes_call_injected_services_and_return_json() {
+        assert_author_routes_call_injected_services_and_return_json("/api/v1").await;
+    }
+
+    async fn assert_author_routes_call_injected_services_and_return_json(prefix: &str) {
         let calls = Calls::default();
         let app = test_app(calls.clone());
         let author_id = author_id();
@@ -240,7 +255,7 @@ mod tests {
             .clone()
             .oneshot(json_request(
                 Method::POST,
-                "/authors",
+                &format!("{prefix}/authors"),
                 json!({ "name": "Octavia Butler", "bio": "Speculative fiction" }),
             ))
             .await
@@ -253,7 +268,7 @@ mod tests {
 
         let list_response = app
             .clone()
-            .oneshot(empty_request(Method::GET, "/authors"))
+            .oneshot(empty_request(Method::GET, &format!("{prefix}/authors")))
             .await
             .unwrap();
         assert_eq!(list_response.status(), StatusCode::OK);
@@ -264,7 +279,10 @@ mod tests {
 
         let get_response = app
             .clone()
-            .oneshot(empty_request(Method::GET, &format!("/authors/{author_id}")))
+            .oneshot(empty_request(
+                Method::GET,
+                &format!("{prefix}/authors/{author_id}"),
+            ))
             .await
             .unwrap();
         assert_eq!(get_response.status(), StatusCode::OK);
@@ -277,7 +295,7 @@ mod tests {
             .clone()
             .oneshot(json_request(
                 Method::PUT,
-                &format!("/authors/{author_id}"),
+                &format!("{prefix}/authors/{author_id}"),
                 json!({ "name": "Updated Author", "bio": null }),
             ))
             .await
@@ -292,7 +310,7 @@ mod tests {
             .clone()
             .oneshot(empty_request(
                 Method::GET,
-                &format!("/authors/{author_id}/books"),
+                &format!("{prefix}/authors/{author_id}/books"),
             ))
             .await
             .unwrap();
@@ -305,7 +323,7 @@ mod tests {
         let delete_response = app
             .oneshot(empty_request(
                 Method::DELETE,
-                &format!("/authors/{author_id}"),
+                &format!("{prefix}/authors/{author_id}"),
             ))
             .await
             .unwrap();
@@ -326,6 +344,15 @@ mod tests {
 
     #[tokio::test]
     async fn book_routes_call_injected_services_and_return_json() {
+        assert_book_routes_call_injected_services_and_return_json("").await;
+    }
+
+    #[tokio::test]
+    async fn versioned_book_routes_call_injected_services_and_return_json() {
+        assert_book_routes_call_injected_services_and_return_json("/api/v1").await;
+    }
+
+    async fn assert_book_routes_call_injected_services_and_return_json(prefix: &str) {
         let calls = Calls::default();
         let app = test_app(calls.clone());
         let author_id = author_id();
@@ -335,7 +362,7 @@ mod tests {
             .clone()
             .oneshot(json_request(
                 Method::POST,
-                "/books",
+                &format!("{prefix}/books"),
                 json!({
                     "author_id": author_id,
                     "title": "Kindred",
@@ -353,7 +380,7 @@ mod tests {
 
         let list_response = app
             .clone()
-            .oneshot(empty_request(Method::GET, "/books"))
+            .oneshot(empty_request(Method::GET, &format!("{prefix}/books")))
             .await
             .unwrap();
         assert_eq!(list_response.status(), StatusCode::OK);
@@ -364,7 +391,10 @@ mod tests {
 
         let get_response = app
             .clone()
-            .oneshot(empty_request(Method::GET, &format!("/books/{book_id}")))
+            .oneshot(empty_request(
+                Method::GET,
+                &format!("{prefix}/books/{book_id}"),
+            ))
             .await
             .unwrap();
         assert_eq!(get_response.status(), StatusCode::OK);
@@ -377,7 +407,7 @@ mod tests {
             .clone()
             .oneshot(json_request(
                 Method::PUT,
-                &format!("/books/{book_id}"),
+                &format!("{prefix}/books/{book_id}"),
                 json!({
                     "author_id": author_id,
                     "title": "Updated Book",
@@ -394,7 +424,10 @@ mod tests {
         );
 
         let delete_response = app
-            .oneshot(empty_request(Method::DELETE, &format!("/books/{book_id}")))
+            .oneshot(empty_request(
+                Method::DELETE,
+                &format!("{prefix}/books/{book_id}"),
+            ))
             .await
             .unwrap();
         assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);

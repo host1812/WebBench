@@ -62,19 +62,21 @@ Docker Compose also forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` as `BOOKSVC
 ```text
 GET    /health
 
-POST   /authors
-GET    /authors
-GET    /authors/{author_id}
-PUT    /authors/{author_id}
-DELETE /authors/{author_id}
-GET    /authors/{author_id}/books
+POST   /api/v1/authors
+GET    /api/v1/authors
+GET    /api/v1/authors/{author_id}
+PUT    /api/v1/authors/{author_id}
+DELETE /api/v1/authors/{author_id}
+GET    /api/v1/authors/{author_id}/books
 
-POST   /books
-GET    /books
-GET    /books/{book_id}
-PUT    /books/{book_id}
-DELETE /books/{book_id}
+POST   /api/v1/books
+GET    /api/v1/books
+GET    /api/v1/books/{book_id}
+PUT    /api/v1/books/{book_id}
+DELETE /api/v1/books/{book_id}
 ```
+
+The original unversioned `/authors` and `/books` routes are still mounted as backward-compatible aliases.
 
 `GET /health` returns basic service health and dependency status:
 

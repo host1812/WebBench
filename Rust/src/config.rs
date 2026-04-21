@@ -20,6 +20,7 @@ impl AppConfig {
 
         let mut config = config.try_deserialize()?;
         apply_booksvc_environment(&mut config)?;
+        validate_config(&config)?;
 
         Ok(config)
     }
@@ -44,6 +45,7 @@ impl Default for ServerConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
+    #[serde(default)]
     pub connection_string: String,
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
@@ -125,6 +127,17 @@ fn apply_booksvc_environment(config: &mut AppConfig) -> Result<(), AppError> {
     Ok(())
 }
 
+fn validate_config(config: &AppConfig) -> Result<(), AppError> {
+    if config.database.connection_string.trim().is_empty() {
+        return Err(AppError::Validation(
+            "BOOKSVC_DATABASE_CONNECTION_STRING or LOCAL_DATABASE_CONNECTION_STRING is required"
+                .to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
 fn parse_http_address(value: &str) -> Result<(String, u16), AppError> {
     let trimmed = value.trim();
 
@@ -189,7 +202,10 @@ fn default_environment() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_bool, parse_http_address};
+    use super::{
+        AppConfig, DatabaseConfig, ObservabilityConfig, ServerConfig, parse_bool,
+        parse_http_address, validate_config,
+    };
 
     #[test]
     fn parse_http_address_supports_port_only_format() {
@@ -227,5 +243,34 @@ mod tests {
         let error = parse_bool("maybe").unwrap_err();
 
         assert!(error.to_string().contains("BOOKSVC_TELEMETRY_ENABLED"));
+    }
+
+    #[test]
+    fn validate_config_accepts_database_connection_string_after_env_mapping() {
+        let config = test_config("postgres://postgres:postgres@postgres:5432/books");
+
+        validate_config(&config).unwrap();
+    }
+
+    #[test]
+    fn validate_config_rejects_missing_database_connection_string() {
+        let error = validate_config(&test_config("")).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("BOOKSVC_DATABASE_CONNECTION_STRING")
+        );
+    }
+
+    fn test_config(connection_string: &str) -> AppConfig {
+        AppConfig {
+            server: ServerConfig::default(),
+            database: DatabaseConfig {
+                connection_string: connection_string.to_owned(),
+                max_connections: 10,
+            },
+            observability: ObservabilityConfig::default(),
+        }
     }
 }

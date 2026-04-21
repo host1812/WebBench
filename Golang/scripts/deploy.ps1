@@ -88,6 +88,9 @@ Assert-Path $ComposeFile
 Assert-Path $CollectorConfigFile
 Assert-Path $NginxConfigFile
 
+Invoke-Remote "if [ -f '$RemoteDir/compose.yaml' ]; then cd '$RemoteDir' && docker compose down --remove-orphans --volumes || true; fi"
+Invoke-Remote "case '$RemoteDir' in /opt/books-service) sudo rm -rf '$RemoteDir' ;; *) echo 'Refusing to remove unexpected remote directory: $RemoteDir' >&2; exit 1 ;; esac"
+Invoke-Remote "sudo rm -f /etc/letsencrypt/renewal-hooks/deploy/books-service-nginx.sh"
 Invoke-Remote "sudo mkdir -p '$RemoteDir' && sudo chown -R `$(id -u):`$(id -g) '$RemoteDir'"
 
 Copy-ToRemote $EnvFile "$RemoteDir/.env"

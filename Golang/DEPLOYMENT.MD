@@ -113,7 +113,9 @@ From your local machine:
 
 The script:
 
-- creates `/opt/books-service`
+- stops any existing Docker Compose stack in `/opt/books-service`
+- removes and recreates `/opt/books-service`
+- removes the old nginx Let's Encrypt renewal hook, if present
 - copies `.env` as `/opt/books-service/.env`
 - copies `compose.vm.yaml` as `/opt/books-service/compose.yaml`
 - copies `nginx.vm.conf`
