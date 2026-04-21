@@ -4,7 +4,12 @@ param(
     [string] $Location = 'northcentralus',
     [string] $TemplateFile = 'main.bicep',
     [string] $ParameterFile = 'main.bicepparam',
+    [string] $PerfTestResourceGroupName = 'rg-PerfTest',
+    [string] $PerfTestLocation = 'westus3',
+    [string] $PerfTestTemplateFile = 'perftest-main.bicep',
+    [string] $PerfTestParameterFile = 'perftest-main.bicepparam',
     [switch] $SkipWhatIf,
+    [switch] $SkipPerfTest,
     [switch] $SkipHostsUpdate
 )
 
@@ -130,6 +135,8 @@ function Assert-RequiredEnvironmentValue {
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $templatePath = Join-Path $scriptRoot $TemplateFile
 $parameterPath = Join-Path $scriptRoot $ParameterFile
+$perfTestTemplatePath = Join-Path $scriptRoot $PerfTestTemplateFile
+$perfTestParameterPath = Join-Path $scriptRoot $PerfTestParameterFile
 $environmentPath = Join-Path $scriptRoot '.env'
 
 Import-DotEnv -Path $environmentPath
@@ -146,6 +153,16 @@ if (-not (Test-Path -LiteralPath $templatePath)) {
 
 if (-not (Test-Path -LiteralPath $parameterPath)) {
     throw "Parameter file not found: $parameterPath"
+}
+
+if (-not $SkipPerfTest) {
+    if (-not (Test-Path -LiteralPath $perfTestTemplatePath)) {
+        throw "PerfTest template file not found: $perfTestTemplatePath"
+    }
+
+    if (-not (Test-Path -LiteralPath $perfTestParameterPath)) {
+        throw "PerfTest parameter file not found: $perfTestParameterPath"
+    }
 }
 
 $account = az account show --query id --output tsv 2>$null
@@ -212,4 +229,29 @@ elseif ($outputs.postgresqlConnectionString) {
 
 if (-not $SkipHostsUpdate) {
     Update-HostsEntry -HostName $vmName -IpAddress $publicIpAddress
+}
+
+if (-not $SkipPerfTest) {
+    if (-not $SkipWhatIf) {
+        az deployment sub what-if `
+            --location $PerfTestLocation `
+            --template-file $perfTestTemplatePath `
+            --parameters $perfTestParameterPath `
+            location=$PerfTestLocation `
+            resourceGroupName=$PerfTestResourceGroupName
+    }
+
+    $perfTestDeployment = az deployment sub create `
+        --location $PerfTestLocation `
+        --template-file $perfTestTemplatePath `
+        --parameters $perfTestParameterPath `
+        location=$PerfTestLocation `
+        resourceGroupName=$PerfTestResourceGroupName `
+        --output json | ConvertFrom-Json
+
+    $perfTestOutputs = $perfTestDeployment.properties.outputs
+
+    Write-Host "PerfTest resource group: $($perfTestOutputs.resourceGroupName.value)"
+    Write-Host "PerfTest VM public IP: $($perfTestOutputs.publicIpAddress.value)"
+    Write-Host "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
 }

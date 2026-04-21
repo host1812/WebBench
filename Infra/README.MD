@@ -8,14 +8,17 @@ The VM uses a user-assigned managed identity. The deployment grants that identit
 
 - `main.bicep` - orchestration template that wires the modules together.
 - `main.bicepparam` - all deployment inputs.
+- `perftest-main.bicep` - subscription-scope template for the dedicated PerfTest load-test environment.
+- `perftest-main.bicepparam` - PerfTest deployment inputs.
 - `.env.example` - template for local secret values.
-- `deploy.ps1` - simple PowerShell deployment wrapper around the Azure CLI commands.
+- `deploy.ps1` - simple PowerShell deployment wrapper that deploys the main infra and PerfTest environment.
 - `modules/containerRegistry.bicep` - Azure Container Registry.
 - `modules/managedIdentity.bicep` - user-assigned managed identity.
 - `modules/vnet.bicep` - VNet, subnet, NSG, and SSH rule.
 - `modules/publicIp.bicep` - static public IP address.
 - `modules/networkInterface.bicep` - VM NIC.
 - `modules/virtualMachine.bicep` - Linux VM.
+- `modules/loadTestEnvironment.bicep` - dedicated LoadTest VNet, NSG, public IP, NIC, and VM.
 - `modules/logAnalyticsWorkspace.bicep` - Log Analytics workspace for monitoring data.
 - `modules/storageAccount.bicep` - storage account for exported monitoring data.
 - `modules/applicationInsights.bicep` - workspace-based Application Insights.
@@ -23,6 +26,7 @@ The VM uses a user-assigned managed identity. The deployment grants that identit
 - `modules/postgresql.bicep` - PostgreSQL Flexible Server, database, and firewall rules.
 - `modules/containerRegistryRoleAssignment.bicep` - role assignments on the deployed Azure Container Registry.
 - `scripts/cloud-init-docker.yaml` - first-boot Docker bootstrap script.
+- `scripts/cloud-init-loadtest.yaml` - first-boot LoadTest VM bootstrap script.
 
 ## Prerequisites
 
@@ -46,7 +50,7 @@ SSH_PUBLIC_KEY=ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY_COMMENT
 POSTGRESQL_ADMIN_PASSWORD=REPLACE_WITH_STRONG_PASSWORD
 ```
 
-Edit `main.bicepparam` for non-secret deployment settings.
+Edit `main.bicepparam` and `perftest-main.bicepparam` for non-secret deployment settings.
 
 The default deployment location is `northcentralus`. This region currently supports the selected VM size and PostgreSQL Flexible Server SKU for this subscription.
 
@@ -100,13 +104,13 @@ By default, storage export includes common Application Insights tables such as `
 
 ## Deploy
 
-Run the deployment script from this directory.
+Run the deployment script from this directory. It deploys the main `rg-WebBench` stack and the separate `rg-PerfTest` load-test stack in one run.
 
 ```powershell
 .\deploy.ps1 -Subscription "<subscription-id-or-name>"
 ```
 
-The script creates `rg-WebBench` in `northcentralus`, runs `what-if`, deploys the Bicep template, and prints the VM public IP address.
+The script creates `rg-WebBench` in `northcentralus`, deploys the main Bicep template, deploys `rg-PerfTest` in `westus3`, and prints both VM public IP addresses.
 
 The script also updates your local hosts file with the VM name and public IP address. It only changes the entry when the hostname is missing or the IP address changed. On Windows, run PowerShell as administrator to allow the hosts file update.
 
@@ -116,13 +120,19 @@ Use `-SkipWhatIf` if you want to skip the preview.
 .\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipWhatIf
 ```
 
+Use `-SkipPerfTest` if you only want to deploy the main infra stack.
+
+```powershell
+.\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipPerfTest
+```
+
 Use `-SkipHostsUpdate` if you do not want to update your local hosts file.
 
 ```powershell
 .\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipHostsUpdate
 ```
 
-The equivalent Azure CLI commands are below.
+The equivalent Azure CLI commands for the main resource-group deployment are below.
 
 If you run the raw Azure CLI commands instead of `deploy.ps1`, set the required environment variables in the current PowerShell session first.
 
@@ -223,4 +233,41 @@ Delete the resource group when you no longer need the VM.
 
 ```powershell
 az group delete --name rg-WebBench --yes
+```
+
+## PerfTest Load-Test VM
+
+The PerfTest deployment creates a separate resource group named `rg-PerfTest` in `westus3`. This is intended to simulate additional network distance when testing an existing HTTPS API. It is deployed by `deploy.ps1` unless you pass `-SkipPerfTest`.
+
+Update `allowedSshSourceAddressPrefix` in `perftest-main.bicepparam` to your public client IP as a `/32` CIDR.
+
+```powershell
+$myIp = Invoke-RestMethod https://api.ipify.org
+"$myIp/32"
+```
+
+To override the PerfTest defaults during the combined deployment:
+
+```powershell
+.\deploy.ps1 -Subscription "<subscription-id-or-name>" -PerfTestResourceGroupName "rg-PerfTest" -PerfTestLocation "westus3"
+```
+
+The PerfTest VM bootstrap installs Docker, enables and starts Docker, adds the admin user to the `docker` group, pulls `grafana/k6:latest`, installs `curl`, `jq`, `unzip`, and `git`, creates `/opt/k6-tests`, and prints Docker and k6 versions to `/var/log/loadtest-bootstrap.log`.
+
+Connect to the VM after deployment.
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\id_ed25519 azureuser@<perftest-vm-public-ip>
+```
+
+Run the load test from Docker.
+
+```bash
+docker run --rm -i grafana/k6:latest run - < /opt/k6-tests/test.js
+```
+
+Clean up the PerfTest environment.
+
+```powershell
+az group delete --name rg-PerfTest --yes
 ```

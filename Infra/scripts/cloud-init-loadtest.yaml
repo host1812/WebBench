@@ -1,0 +1,51 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+write_files:
+  - path: /usr/local/bin/loadtest-bootstrap.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      ADMIN_USER="__ADMIN_USERNAME__"
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update
+      apt-get install -y ca-certificates curl jq unzip git gnupg lsb-release
+
+      install -m 0755 -d /etc/apt/keyrings
+      if [ ! -s /etc/apt/keyrings/docker.asc ]; then
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+      fi
+      chmod a+r /etc/apt/keyrings/docker.asc
+
+      . /etc/os-release
+      cat > /etc/apt/sources.list.d/docker.list <<EOF
+      deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable
+      EOF
+
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+      systemctl enable docker
+      systemctl start docker
+
+      if id "${ADMIN_USER}" >/dev/null 2>&1; then
+        usermod -aG docker "${ADMIN_USER}"
+        install -d -o "${ADMIN_USER}" -g "${ADMIN_USER}" -m 0775 /opt/k6-tests
+      else
+        install -d -m 0775 /opt/k6-tests
+      fi
+
+      docker pull grafana/k6:latest
+
+      echo "Installed tool versions:"
+      docker --version
+      docker compose version
+      docker run --rm grafana/k6:latest version
+
+runcmd:
+  - /usr/local/bin/loadtest-bootstrap.sh 2>&1 | tee -a /var/log/loadtest-bootstrap.log

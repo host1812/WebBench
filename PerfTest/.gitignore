@@ -1,0 +1,4 @@
+perf/reports/*
+!perf/reports/.gitkeep
+
+*.log
