@@ -71,6 +71,8 @@ The default VM size is `Standard_F4s_v2`, which is 4 vCPU and 8 GiB memory. The 
 
 The NSG allows SSH on port `22`, HTTP on port `80`, HTTPS on port `443`, and the books service on port `8080` from the configured source CIDRs.
 
+When PerfTest is deployed, `deploy.ps1` also allows the PerfTest VM public IP to reach HTTPS port `443` on the main VM. This lets the load-test VM call the API without opening HTTPS broadly.
+
 The registry name is controlled by:
 
 ```bicep
@@ -110,7 +112,13 @@ Run the deployment script from this directory. It deploys the main `rg-WebBench`
 .\deploy.ps1 -Subscription "<subscription-id-or-name>"
 ```
 
-The script creates `rg-WebBench` in `northcentralus`, deploys the main Bicep template, deploys `rg-PerfTest` in `westus3`, and prints both VM public IP addresses.
+The script creates `rg-PerfTest` in `westus3`, captures the PerfTest VM public IP, then creates `rg-WebBench` in `northcentralus` and allows that PerfTest IP to reach HTTPS port `443` on the main VM. It prints both VM public IP addresses.
+
+By default, Azure CLI deployment output is quiet and the script prints a final summary at the end. Use `-Verbose` to stream what-if output and deployment command details.
+
+```powershell
+.\deploy.ps1 -Subscription "<subscription-id-or-name>" -Verbose
+```
 
 The script also updates your local hosts file with the VM name and public IP address. It only changes the entry when the hostname is missing or the IP address changed. On Windows, run PowerShell as administrator to allow the hosts file update.
 

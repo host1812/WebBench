@@ -10,6 +10,7 @@ param sshPublicKey = readEnvironmentVariable('SSH_PUBLIC_KEY')
 param allowedSshSourceAddressPrefix = '184.16.75.186/32'
 param allowedBooksServiceSourceAddressPrefix = '184.16.75.186/32'
 param allowedHttpsSourceAddressPrefix = '184.16.75.186/32'
+param allowedPerfTestHttpsSourceAddressPrefix = ''
 param allowedHttpSourceAddressPrefix = '184.16.75.186/32'
 
 // Standard_F4s_v2 is 4 vCPU and 8 GiB memory.

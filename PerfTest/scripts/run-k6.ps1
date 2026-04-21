@@ -102,7 +102,7 @@ Write-Host "Reminder: if the target API uses a self-signed certificate, pass -Sk
 Write-Host "Local report path: $LocalReport"
 
 Invoke-RemoteChecked -Command "mkdir -p $(ConvertTo-RemoteShellArg $RemoteDir) $(ConvertTo-RemoteShellArg $RemoteReportsDir)"
-Invoke-CheckedNative -FilePath 'scp' -Arguments @($LocalK6Script, "${RemoteLogin}:$(ConvertTo-RemoteShellArg $RemoteK6Script)")
+Invoke-CheckedNative -FilePath 'scp' -Arguments @($LocalK6Script, "${RemoteLogin}:$RemoteK6Script")
 Invoke-RemoteChecked -Command 'docker pull grafana/k6'
 
 $dockerArgs = @(
@@ -138,7 +138,7 @@ $k6ExitCode = $LASTEXITCODE
 $remoteReportExistsCommand = "test -f $(ConvertTo-RemoteShellArg $RemoteReport)"
 & ssh $RemoteLogin $remoteReportExistsCommand
 if ($LASTEXITCODE -eq 0) {
-    Invoke-CheckedNative -FilePath 'scp' -Arguments @("${RemoteLogin}:$(ConvertTo-RemoteShellArg $RemoteReport)", $LocalReport)
+    Invoke-CheckedNative -FilePath 'scp' -Arguments @("${RemoteLogin}:$RemoteReport", $LocalReport)
     Write-Host "Report copied to: $LocalReport"
 }
 else {

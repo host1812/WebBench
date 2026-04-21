@@ -22,6 +22,9 @@ param allowedBooksServiceSourceAddressPrefix string
 @description('Source CIDR allowed to connect to HTTPS on port 443, for example 203.0.113.10/32.')
 param allowedHttpsSourceAddressPrefix string
 
+@description('Optional PerfTest source CIDR allowed to connect to HTTPS on port 443, for example 203.0.113.10/32.')
+param allowedPerfTestHttpsSourceAddressPrefix string
+
 @description('Source CIDR allowed to connect to HTTP on port 80, for example 203.0.113.10/32.')
 param allowedHttpSourceAddressPrefix string
 
@@ -188,6 +191,7 @@ module vnet 'modules/vnet.bicep' = {
     allowedBooksServiceSourceAddressPrefix: allowedBooksServiceSourceAddressPrefix
     allowedHttpSourceAddressPrefix: allowedHttpSourceAddressPrefix
     allowedHttpsSourceAddressPrefix: allowedHttpsSourceAddressPrefix
+    allowedPerfTestHttpsSourceAddressPrefix: allowedPerfTestHttpsSourceAddressPrefix
     allowedSshSourceAddressPrefix: allowedSshSourceAddressPrefix
     location: location
     nsgName: '${sanitizedPrefix}-nsg'

@@ -25,14 +25,33 @@ param allowedBooksServiceSourceAddressPrefix string
 @description('Source CIDR allowed to connect to HTTPS on port 443.')
 param allowedHttpsSourceAddressPrefix string
 
+@description('Optional PerfTest source CIDR allowed to connect to HTTPS on port 443.')
+param allowedPerfTestHttpsSourceAddressPrefix string
+
 @description('Source CIDR allowed to connect to HTTP on port 80.')
 param allowedHttpSourceAddressPrefix string
+
+var perfTestHttpsRules = empty(allowedPerfTestHttpsSourceAddressPrefix) ? [] : [
+  {
+    name: 'Allow-Https-443-From-PerfTest'
+    properties: {
+      priority: 1025
+      access: 'Allow'
+      direction: 'Inbound'
+      protocol: 'Tcp'
+      sourcePortRange: '*'
+      destinationPortRange: '443'
+      sourceAddressPrefix: allowedPerfTestHttpsSourceAddressPrefix
+      destinationAddressPrefix: '*'
+    }
+  }
+]
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: nsgName
   location: location
   properties: {
-    securityRules: [
+    securityRules: concat([
       {
         name: 'AllowSshFromConfiguredSource'
         properties: {
@@ -85,7 +104,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           destinationAddressPrefix: '*'
         }
       }
-    ]
+    ], perfTestHttpsRules)
   }
 }
 

@@ -1,3 +1,4 @@
+[CmdletBinding()]
 param(
     [string] $Subscription,
     [string] $ResourceGroupName = 'rg-WebBench',
@@ -14,6 +15,86 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$script:DeploymentMessages = [System.Collections.Generic.List[string]]::new()
+
+function Test-VerboseEnabled {
+    return $VerbosePreference -ne 'SilentlyContinue'
+}
+
+function Add-DeploymentMessage {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Message
+    )
+
+    $script:DeploymentMessages.Add($Message)
+}
+
+function Get-AzArguments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Arguments
+    )
+
+    if (Test-VerboseEnabled) {
+        return $Arguments
+    }
+
+    return @($Arguments + '--only-show-errors')
+}
+
+function Invoke-AzCliCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Arguments,
+
+        [string] $Description
+    )
+
+    $effectiveArguments = Get-AzArguments -Arguments $Arguments
+
+    if ($Description) {
+        Write-Verbose $Description
+    }
+
+    Write-Verbose "az $($Arguments -join ' ')"
+
+    if (Test-VerboseEnabled) {
+        & az @effectiveArguments
+    }
+    else {
+        & az @effectiveArguments | Out-Null
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI command failed with exit code $LASTEXITCODE`: az $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-AzCliJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Arguments,
+
+        [string] $Description
+    )
+
+    $effectiveArguments = Get-AzArguments -Arguments $Arguments
+
+    if ($Description) {
+        Write-Verbose $Description
+    }
+
+    Write-Verbose "az $($Arguments -join ' ')"
+
+    $output = & az @effectiveArguments
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI command failed with exit code $LASTEXITCODE`: az $($Arguments -join ' ')"
+    }
+
+    return $output | Out-String | ConvertFrom-Json
+}
 
 function Update-HostsEntry {
     param(
@@ -32,7 +113,7 @@ function Update-HostsEntry {
     }
 
     if (-not (Test-Path -LiteralPath $hostsPath)) {
-        Write-Warning "Hosts file not found: $hostsPath"
+        Add-DeploymentMessage "Hosts file not found: $hostsPath"
         return
     }
 
@@ -75,14 +156,15 @@ function Update-HostsEntry {
 
         if ($changed) {
             Set-Content -LiteralPath $hostsPath -Value $updatedLines -Encoding ascii
-            Write-Host "Hosts entry updated: $IpAddress $HostName"
+            Add-DeploymentMessage "Hosts entry updated: $IpAddress $HostName"
         }
         else {
-            Write-Host "Hosts entry unchanged: $IpAddress $HostName"
+            Add-DeploymentMessage "Hosts entry unchanged: $IpAddress $HostName"
         }
     }
     catch {
-        Write-Warning "Could not update hosts file. Run PowerShell as administrator or add this entry manually: $IpAddress $HostName"
+        Add-DeploymentMessage "Hosts file not updated. Run PowerShell as administrator or add manually: $IpAddress $HostName"
+        Write-Verbose $_
     }
 }
 
@@ -139,6 +221,7 @@ $perfTestTemplatePath = Join-Path $scriptRoot $PerfTestTemplateFile
 $perfTestParameterPath = Join-Path $scriptRoot $PerfTestParameterFile
 $environmentPath = Join-Path $scriptRoot '.env'
 
+Write-Verbose "Loading environment values from $environmentPath"
 Import-DotEnv -Path $environmentPath
 Assert-RequiredEnvironmentValue -Name 'SSH_PUBLIC_KEY'
 Assert-RequiredEnvironmentValue -Name 'POSTGRESQL_ADMIN_PASSWORD'
@@ -165,93 +248,125 @@ if (-not $SkipPerfTest) {
     }
 }
 
-$account = az account show --query id --output tsv 2>$null
-if (-not $account) {
-    az login | Out-Null
+$accountId = & az account show --query id --output tsv --only-show-errors 2>$null
+if ($LASTEXITCODE -ne 0) {
+    $accountId = $null
+    Write-Verbose 'No active Azure CLI account found.'
+}
+
+if (-not $accountId) {
+    Write-Verbose 'Starting az login.'
+    & az login --output none
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI login failed with exit code $LASTEXITCODE."
+    }
 }
 
 if ($Subscription) {
-    az account set --subscription $Subscription
+    Invoke-AzCliCommand `
+        -Description "Selecting subscription $Subscription." `
+        -Arguments @('account', 'set', '--subscription', $Subscription)
 }
 
-az group create `
-    --name $ResourceGroupName `
-    --location $Location `
-    --output none
+$perfTestOutputs = $null
+$perfTestPublicIpAddress = $null
+
+if (-not $SkipPerfTest) {
+    $perfTestCommonArgs = @(
+        '--location', $PerfTestLocation,
+        '--template-file', $perfTestTemplatePath,
+        '--parameters', $perfTestParameterPath,
+        "location=$PerfTestLocation",
+        "resourceGroupName=$PerfTestResourceGroupName"
+    )
+
+    if (-not $SkipWhatIf) {
+        Invoke-AzCliCommand `
+            -Description 'Running PerfTest subscription-scope what-if.' `
+            -Arguments (@('deployment', 'sub', 'what-if') + $perfTestCommonArgs)
+    }
+
+    $perfTestDeployment = Invoke-AzCliJson `
+        -Description 'Deploying PerfTest subscription-scope template.' `
+        -Arguments (@('deployment', 'sub', 'create') + $perfTestCommonArgs + @('--output', 'json'))
+
+    $perfTestOutputs = $perfTestDeployment.properties.outputs
+    $perfTestPublicIpAddress = $perfTestOutputs.publicIpAddress.value
+}
+
+Invoke-AzCliCommand `
+    -Description "Creating or updating resource group $ResourceGroupName in $Location." `
+    -Arguments @('group', 'create', '--name', $ResourceGroupName, '--location', $Location, '--output', 'none')
+
+$mainParameterOverrides = @()
+if ($perfTestPublicIpAddress) {
+    $mainParameterOverrides += "allowedPerfTestHttpsSourceAddressPrefix=$perfTestPublicIpAddress/32"
+}
+
+$mainCommonArgs = @(
+    '--resource-group', $ResourceGroupName,
+    '--template-file', $templatePath,
+    '--parameters', $parameterPath
+) + $mainParameterOverrides
 
 if (-not $SkipWhatIf) {
-    az deployment group what-if `
-        --resource-group $ResourceGroupName `
-        --template-file $templatePath `
-        --parameters $parameterPath
+    Invoke-AzCliCommand `
+        -Description 'Running main resource-group what-if.' `
+        -Arguments (@('deployment', 'group', 'what-if') + $mainCommonArgs)
 }
 
-$deployment = az deployment group create `
-    --resource-group $ResourceGroupName `
-    --template-file $templatePath `
-    --parameters $parameterPath `
-    --output json | ConvertFrom-Json
+$deployment = Invoke-AzCliJson `
+    -Description 'Deploying main resource-group template.' `
+    -Arguments (@('deployment', 'group', 'create') + $mainCommonArgs + @('--output', 'json'))
 
 $outputs = $deployment.properties.outputs
 $vmName = $outputs.vmName.value
 $publicIpAddress = $outputs.publicIpAddress.value
 $sshCommand = $outputs.sshCommand.value
 
-Write-Host "VM public IP: $publicIpAddress"
-Write-Host "SSH command: $sshCommand"
+Add-DeploymentMessage "VM public IP: $publicIpAddress"
+Add-DeploymentMessage "SSH command: $sshCommand"
 
 if ($outputs.containerRegistryLoginServer) {
-    Write-Host "ACR login server: $($outputs.containerRegistryLoginServer.value)"
+    Add-DeploymentMessage "ACR login server: $($outputs.containerRegistryLoginServer.value)"
 }
 
 if ($outputs.applicationInsightsConnectionString) {
-    Write-Host "Application Insights connection string: $($outputs.applicationInsightsConnectionString.value)"
+    Add-DeploymentMessage "Application Insights connection string: $($outputs.applicationInsightsConnectionString.value)"
 }
 
 if ($outputs.logAnalyticsWorkspaceName) {
-    Write-Host "Log Analytics workspace: $($outputs.logAnalyticsWorkspaceName.value)"
+    Add-DeploymentMessage "Log Analytics workspace: $($outputs.logAnalyticsWorkspaceName.value)"
 }
 
 if ($outputs.monitoringStorageAccountName) {
-    Write-Host "Monitoring storage account: $($outputs.monitoringStorageAccountName.value)"
+    Add-DeploymentMessage "Monitoring storage account: $($outputs.monitoringStorageAccountName.value)"
 }
 
 if ($outputs.postgresqlFullyQualifiedDomainName) {
-    Write-Host "PostgreSQL host: $($outputs.postgresqlFullyQualifiedDomainName.value)"
+    Add-DeploymentMessage "PostgreSQL host: $($outputs.postgresqlFullyQualifiedDomainName.value)"
 }
 
 if ($outputs.postgresqlConnectionString -and $outputs.postgresqlConnectionString.value) {
-    Write-Host "PostgreSQL connection string: $($outputs.postgresqlConnectionString.value)"
+    Add-DeploymentMessage "PostgreSQL connection string: $($outputs.postgresqlConnectionString.value)"
 }
 elseif ($outputs.postgresqlConnectionString) {
-    Write-Warning 'PostgreSQL connection string is a secure deployment output and was not returned by Azure CLI.'
+    Add-DeploymentMessage 'PostgreSQL connection string is a secure deployment output and was not returned by Azure CLI.'
 }
 
 if (-not $SkipHostsUpdate) {
     Update-HostsEntry -HostName $vmName -IpAddress $publicIpAddress
 }
 
-if (-not $SkipPerfTest) {
-    if (-not $SkipWhatIf) {
-        az deployment sub what-if `
-            --location $PerfTestLocation `
-            --template-file $perfTestTemplatePath `
-            --parameters $perfTestParameterPath `
-            location=$PerfTestLocation `
-            resourceGroupName=$PerfTestResourceGroupName
-    }
+if ($perfTestOutputs) {
+    Add-DeploymentMessage "PerfTest resource group: $($perfTestOutputs.resourceGroupName.value)"
+    Add-DeploymentMessage "PerfTest VM public IP: $perfTestPublicIpAddress"
+    Add-DeploymentMessage "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
+    Add-DeploymentMessage "PerfTest HTTPS source allowed on main VM: $perfTestPublicIpAddress/32"
+}
 
-    $perfTestDeployment = az deployment sub create `
-        --location $PerfTestLocation `
-        --template-file $perfTestTemplatePath `
-        --parameters $perfTestParameterPath `
-        location=$PerfTestLocation `
-        resourceGroupName=$PerfTestResourceGroupName `
-        --output json | ConvertFrom-Json
-
-    $perfTestOutputs = $perfTestDeployment.properties.outputs
-
-    Write-Host "PerfTest resource group: $($perfTestOutputs.resourceGroupName.value)"
-    Write-Host "PerfTest VM public IP: $($perfTestOutputs.publicIpAddress.value)"
-    Write-Host "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
+Write-Host 'Deployment summary:'
+foreach ($message in $script:DeploymentMessages) {
+    Write-Host "- $message"
 }
