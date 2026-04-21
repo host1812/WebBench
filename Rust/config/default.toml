@@ -1,0 +1,12 @@
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+max_connections = 10
+run_migrations_on_startup = true
+
+[observability]
+log_filter = "info,rust_backend_service=debug,tower_http=info"
+service_name = "rust_backend_service"
+environment = "local"

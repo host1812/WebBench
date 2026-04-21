@@ -1,0 +1,7 @@
+.gocache/
+.gomodcache/
+coverage.out
+*.test
+.env
+.env.*
+!.env.example

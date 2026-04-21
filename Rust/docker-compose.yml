@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${API_IMAGE:-rust-backend-service:local}
+    environment:
+      APP__SERVER__HOST: ${APP__SERVER__HOST}
+      APP__SERVER__PORT: ${APP__SERVER__PORT}
+      APP__DATABASE__CONNECTION_STRING: ${APP__DATABASE__CONNECTION_STRING}
+      APP__DATABASE__MAX_CONNECTIONS: ${APP__DATABASE__MAX_CONNECTIONS}
+      APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP: ${APP__DATABASE__RUN_MIGRATIONS_ON_STARTUP}
+      APP__OBSERVABILITY__SERVICE_NAME: ${APP__OBSERVABILITY__SERVICE_NAME}
+      APP__OBSERVABILITY__ENVIRONMENT: ${APP__OBSERVABILITY__ENVIRONMENT}
+      APP__OBSERVABILITY__LOG_FILTER: ${APP__OBSERVABILITY__LOG_FILTER}
+      APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING: ${APP__OBSERVABILITY__APPLICATION_INSIGHTS_CONNECTION_STRING:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

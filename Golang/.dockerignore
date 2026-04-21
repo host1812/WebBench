@@ -1,0 +1,12 @@
+.git/
+.gocache/
+.gomodcache/
+.env
+.env.*
+coverage.out
+*.test
+Dockerfile
+compose.yaml
+compose.vm.yaml
+otel-collector-config.yaml
+README.md

@@ -1,0 +1,5 @@
+.azure/
+.azure-*/
+.env
+main.json
+*.parameters.json
