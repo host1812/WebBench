@@ -114,7 +114,7 @@ Run the deployment script from this directory. It deploys the main `rg-WebBench`
 
 The script creates `rg-PerfTest` in `westus3`, captures the PerfTest VM public IP, then creates `rg-WebBench` in `northcentralus` and allows that PerfTest IP to reach HTTPS port `443` on the main VM. It prints both VM public IP addresses.
 
-By default, Azure CLI deployment output is quiet and the script prints a final summary at the end. Use `-Verbose` to stream what-if output and deployment command details.
+By default, Azure CLI deployment output is quiet, the script shows deployment progress, and it prints a final summary at the end. Use `-Verbose` to stream what-if output and deployment command details.
 
 ```powershell
 .\deploy.ps1 -Subscription "<subscription-id-or-name>" -Verbose

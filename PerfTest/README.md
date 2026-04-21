@@ -12,6 +12,8 @@ This project contains a read-only Grafana k6 OSS test for an existing books/auth
 
 If the target API uses a self-signed certificate, run with `-SkipTlsVerify`.
 
+`-SkipTlsVerify` sets both the test script's `SKIP_TLS_VERIFY` variable and k6's native `K6_INSECURE_SKIP_TLS_VERIFY` option inside the Docker container.
+
 ## Run
 
 Basic read test:
@@ -70,3 +72,9 @@ k6 prints summary trend stats for `avg`, `min`, `med`, `p(90)`, `p(95)`, `p(99)`
 - The HTML dashboard report is copied back to `perf/reports/books-read-<timestamp>.html`.
 
 `GET /api/v1/books` returns a large response, so it may dominate overall latency and make the aggregate p95/p99 higher than the smaller endpoints.
+
+## Self-Signed Certificates
+
+For quick private load tests, use `-SkipTlsVerify`. This disables server certificate verification for k6, which prevents self-signed certificate failures and their repeated request warnings.
+
+For stricter testing, trust the certificate authority used by the service instead of skipping verification. Because k6 runs inside Docker, the certificate must be trusted inside the container, not just on the Azure VM host. The usual production-grade fix is to issue the service certificate from an internal CA and build or use a k6 image that includes that CA certificate in the container trust store.

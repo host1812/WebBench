@@ -109,6 +109,7 @@ $dockerArgs = @(
     'docker run --rm',
     '-e', "BASE_URL=$(ConvertTo-RemoteShellArg $BaseUrl)",
     '-e', "SKIP_TLS_VERIFY=$(ConvertTo-RemoteShellArg $SkipTlsValue)",
+    '-e', "K6_INSECURE_SKIP_TLS_VERIFY=$(ConvertTo-RemoteShellArg $SkipTlsValue)",
     '-e', "VUS=$(ConvertTo-RemoteShellArg ([string]$Vus))",
     '-e', "DURATION=$(ConvertTo-RemoteShellArg $Duration)",
     '-e', 'K6_WEB_DASHBOARD=true',

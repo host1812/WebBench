@@ -16,6 +16,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $script:DeploymentMessages = [System.Collections.Generic.List[string]]::new()
+$script:ProgressActivity = 'Deploy WebBench infrastructure'
+$script:ProgressStep = 0
+$script:ProgressTotalSteps = 8
 
 function Test-VerboseEnabled {
     return $VerbosePreference -ne 'SilentlyContinue'
@@ -28,6 +31,23 @@ function Add-DeploymentMessage {
     )
 
     $script:DeploymentMessages.Add($Message)
+}
+
+function Set-DeploymentProgress {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Status
+    )
+
+    $script:ProgressStep += 1
+    $percentComplete = [Math]::Min(95, [int](($script:ProgressStep / $script:ProgressTotalSteps) * 100))
+
+    Write-Progress `
+        -Activity $script:ProgressActivity `
+        -Status $Status `
+        -PercentComplete $percentComplete
+
+    Write-Verbose $Status
 }
 
 function Get-AzArguments {
@@ -221,7 +241,7 @@ $perfTestTemplatePath = Join-Path $scriptRoot $PerfTestTemplateFile
 $perfTestParameterPath = Join-Path $scriptRoot $PerfTestParameterFile
 $environmentPath = Join-Path $scriptRoot '.env'
 
-Write-Verbose "Loading environment values from $environmentPath"
+Set-DeploymentProgress -Status 'Loading environment configuration.'
 Import-DotEnv -Path $environmentPath
 Assert-RequiredEnvironmentValue -Name 'SSH_PUBLIC_KEY'
 Assert-RequiredEnvironmentValue -Name 'POSTGRESQL_ADMIN_PASSWORD'
@@ -264,6 +284,7 @@ if (-not $accountId) {
 }
 
 if ($Subscription) {
+    Set-DeploymentProgress -Status 'Selecting Azure subscription.'
     Invoke-AzCliCommand `
         -Description "Selecting subscription $Subscription." `
         -Arguments @('account', 'set', '--subscription', $Subscription)
@@ -273,6 +294,7 @@ $perfTestOutputs = $null
 $perfTestPublicIpAddress = $null
 
 if (-not $SkipPerfTest) {
+    Set-DeploymentProgress -Status 'Deploying PerfTest environment.'
     $perfTestCommonArgs = @(
         '--location', $PerfTestLocation,
         '--template-file', $perfTestTemplatePath,
@@ -295,6 +317,7 @@ if (-not $SkipPerfTest) {
     $perfTestPublicIpAddress = $perfTestOutputs.publicIpAddress.value
 }
 
+Set-DeploymentProgress -Status 'Creating or updating main resource group.'
 Invoke-AzCliCommand `
     -Description "Creating or updating resource group $ResourceGroupName in $Location." `
     -Arguments @('group', 'create', '--name', $ResourceGroupName, '--location', $Location, '--output', 'none')
@@ -311,11 +334,13 @@ $mainCommonArgs = @(
 ) + $mainParameterOverrides
 
 if (-not $SkipWhatIf) {
+    Set-DeploymentProgress -Status 'Running main deployment preview.'
     Invoke-AzCliCommand `
         -Description 'Running main resource-group what-if.' `
         -Arguments (@('deployment', 'group', 'what-if') + $mainCommonArgs)
 }
 
+Set-DeploymentProgress -Status 'Deploying main infrastructure.'
 $deployment = Invoke-AzCliJson `
     -Description 'Deploying main resource-group template.' `
     -Arguments (@('deployment', 'group', 'create') + $mainCommonArgs + @('--output', 'json'))
@@ -356,6 +381,7 @@ elseif ($outputs.postgresqlConnectionString) {
 }
 
 if (-not $SkipHostsUpdate) {
+    Set-DeploymentProgress -Status 'Updating local hosts file.'
     Update-HostsEntry -HostName $vmName -IpAddress $publicIpAddress
 }
 
@@ -365,6 +391,8 @@ if ($perfTestOutputs) {
     Add-DeploymentMessage "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
     Add-DeploymentMessage "PerfTest HTTPS source allowed on main VM: $perfTestPublicIpAddress/32"
 }
+
+Write-Progress -Activity $script:ProgressActivity -Completed
 
 Write-Host 'Deployment summary:'
 foreach ($message in $script:DeploymentMessages) {
