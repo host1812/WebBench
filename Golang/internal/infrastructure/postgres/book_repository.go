@@ -110,15 +110,17 @@ func (r *BookRepository) Get(ctx context.Context, id uuid.UUID) (domain.Book, er
 	return book, nil
 }
 
-func (r *BookRepository) List(ctx context.Context) ([]domain.Book, error) {
+func (r *BookRepository) List(ctx context.Context, options application.BookListOptions) ([]domain.Book, error) {
 	ctx, span := startDBSpan(ctx, postgresBookTracer, "postgres.books.select", "SELECT", "books")
 	defer span.End()
+	span.SetAttributes(attribute.Int("book.limit", options.Limit))
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, author_id, title, isbn, published_year, created_at, updated_at
 		FROM books
 		ORDER BY title ASC, created_at ASC
-	`)
+		LIMIT $1
+	`, options.Limit)
 	if err != nil {
 		telemetry.RecordSpanError(span, err)
 		return nil, fmt.Errorf("list books: %w", err)
@@ -133,17 +135,21 @@ func (r *BookRepository) List(ctx context.Context) ([]domain.Book, error) {
 	return books, err
 }
 
-func (r *BookRepository) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]domain.Book, error) {
+func (r *BookRepository) ListByAuthor(ctx context.Context, authorID uuid.UUID, options application.BookListOptions) ([]domain.Book, error) {
 	ctx, span := startDBSpan(ctx, postgresBookTracer, "postgres.books.select_by_author", "SELECT", "books")
 	defer span.End()
-	span.SetAttributes(attribute.String("author.id", authorID.String()))
+	span.SetAttributes(
+		attribute.String("author.id", authorID.String()),
+		attribute.Int("book.limit", options.Limit),
+	)
 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, author_id, title, isbn, published_year, created_at, updated_at
 		FROM books
 		WHERE author_id = $1
 		ORDER BY title ASC, created_at ASC
-	`, authorID)
+		LIMIT $2
+	`, authorID, options.Limit)
 	if err != nil {
 		telemetry.RecordSpanError(span, err)
 		return nil, fmt.Errorf("list books by author: %w", err)

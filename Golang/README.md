@@ -102,15 +102,17 @@ Do not commit `.env`. The repository only keeps `.env.example` with placeholder 
 
 ## Endpoints
 
+Book list endpoints accept `limit` from `1` to `100000`. The default is `10000`.
+
 - `POST /api/v1/authors`
 - `GET /api/v1/authors`
 - `GET /api/v1/authors/{id}`
 - `PUT /api/v1/authors/{id}`
 - `DELETE /api/v1/authors/{id}`
-- `GET /api/v1/authors/{id}/books`
+- `GET /api/v1/authors/{id}/books?limit={1-100000}`
 - `POST /api/v1/books`
-- `GET /api/v1/books`
-- `GET /api/v1/books?author_id={authorID}`
+- `GET /api/v1/books?limit={1-100000}`
+- `GET /api/v1/books?author_id={authorID}&limit={1-100000}`
 - `GET /api/v1/books/{id}`
 - `PUT /api/v1/books/{id}`
 - `DELETE /api/v1/books/{id}`

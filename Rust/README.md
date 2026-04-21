@@ -67,16 +67,18 @@ GET    /api/v1/authors
 GET    /api/v1/authors/{author_id}
 PUT    /api/v1/authors/{author_id}
 DELETE /api/v1/authors/{author_id}
-GET    /api/v1/authors/{author_id}/books
+GET    /api/v1/authors/{author_id}/books?limit=10000
 
 POST   /api/v1/books
-GET    /api/v1/books
+GET    /api/v1/books?limit=10000
 GET    /api/v1/books/{book_id}
 PUT    /api/v1/books/{book_id}
 DELETE /api/v1/books/{book_id}
 ```
 
 The original unversioned `/authors` and `/books` routes are still mounted as backward-compatible aliases.
+
+Book list endpoints accept an optional `limit` query parameter. Valid range is `1` to `100000`; default is `10000`.
 
 `GET /health` returns basic service health and dependency status:
 

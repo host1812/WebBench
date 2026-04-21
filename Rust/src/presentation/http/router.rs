@@ -1,10 +1,11 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
 };
+use serde::Deserialize;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
@@ -13,7 +14,10 @@ use crate::{
         authors::{CreateAuthorInput, UpdateAuthorInput},
         books::{CreateBookInput, UpdateBookInput},
     },
-    domain::{author::AuthorId, book::BookId},
+    domain::{
+        author::AuthorId,
+        book::{BookId, BookListLimit},
+    },
     error::AppError,
     presentation::http::AppState,
 };
@@ -107,10 +111,12 @@ async fn delete_author(
 async fn list_author_books(
     State(state): State<AppState>,
     Path(author_id): Path<Uuid>,
+    Query(params): Query<BookListParams>,
 ) -> Result<impl IntoResponse, AppError> {
+    let limit = params.limit()?;
     let books = state
         .author_queries
-        .list_books_for_author(author_id.into())
+        .list_books_for_author(author_id.into(), limit)
         .await?;
     Ok(Json(books))
 }
@@ -125,8 +131,11 @@ async fn create_book(
 }
 
 #[tracing::instrument(name = "http.books.list", skip(state), err)]
-async fn list_books(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let books = state.book_queries.list_books().await?;
+async fn list_books(
+    State(state): State<AppState>,
+    Query(params): Query<BookListParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let books = state.book_queries.list_books(params.limit()?).await?;
     Ok(Json(books))
 }
 
@@ -159,6 +168,20 @@ async fn delete_book(
 ) -> Result<impl IntoResponse, AppError> {
     state.book_commands.delete_book(book_id.into()).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BookListParams {
+    limit: Option<u32>,
+}
+
+impl BookListParams {
+    fn limit(self) -> Result<BookListLimit, AppError> {
+        match self.limit {
+            Some(limit) => BookListLimit::new(limit),
+            None => Ok(BookListLimit::default()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -195,7 +218,10 @@ mod tests {
                 HealthStatus,
             },
         },
-        domain::{author::AuthorId, book::BookId},
+        domain::{
+            author::AuthorId,
+            book::{BookId, BookListLimit},
+        },
         error::AppError,
         presentation::http::{AppState, router::build_router},
     };
@@ -336,7 +362,7 @@ mod tests {
                 "author_queries.list_authors".to_owned(),
                 format!("author_queries.get_author:{author_id}"),
                 format!("author_commands.update_author:{author_id}:Updated Author"),
-                format!("author_queries.list_books_for_author:{author_id}"),
+                format!("author_queries.list_books_for_author:{author_id}:10000"),
                 format!("author_commands.delete_author:{author_id}"),
             ]
         );
@@ -436,11 +462,84 @@ mod tests {
             calls.snapshot(),
             vec![
                 "book_commands.create_book:Kindred".to_owned(),
-                "book_queries.list_books".to_owned(),
+                "book_queries.list_books:10000".to_owned(),
                 format!("book_queries.get_book:{book_id}"),
                 format!("book_commands.update_book:{book_id}:Updated Book"),
                 format!("book_commands.delete_book:{book_id}"),
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn book_list_route_passes_requested_limit() {
+        let calls = Calls::default();
+        let app = test_app(calls.clone());
+
+        let response = app
+            .oneshot(empty_request(Method::GET, "/api/v1/books?limit=25"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(calls.snapshot(), vec!["book_queries.list_books:25"]);
+    }
+
+    #[tokio::test]
+    async fn author_books_route_passes_requested_limit() {
+        let calls = Calls::default();
+        let app = test_app(calls.clone());
+        let author_id = author_id();
+
+        let response = app
+            .oneshot(empty_request(
+                Method::GET,
+                &format!("/api/v1/authors/{author_id}/books?limit=25"),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            calls.snapshot(),
+            vec![format!(
+                "author_queries.list_books_for_author:{author_id}:25"
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn book_list_route_rejects_limit_below_minimum() {
+        let app = test_app(Calls::default());
+
+        let response = app
+            .oneshot(empty_request(Method::GET, "/api/v1/books?limit=0"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            response_json(response).await["message"]
+                .as_str()
+                .unwrap()
+                .contains("limit must be between 1 and 100000")
+        );
+    }
+
+    #[tokio::test]
+    async fn book_list_route_rejects_limit_above_maximum() {
+        let app = test_app(Calls::default());
+
+        let response = app
+            .oneshot(empty_request(Method::GET, "/api/v1/books?limit=100001"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            response_json(response).await["message"]
+                .as_str()
+                .unwrap()
+                .contains("limit must be between 1 and 100000")
         );
     }
 
@@ -595,9 +694,12 @@ mod tests {
         async fn list_books_for_author(
             &self,
             author_id: AuthorId,
+            limit: BookListLimit,
         ) -> Result<Vec<BookDto>, AppError> {
-            self.calls
-                .record(format!("author_queries.list_books_for_author:{author_id}"));
+            self.calls.record(format!(
+                "author_queries.list_books_for_author:{author_id}:{}",
+                limit.value()
+            ));
             Ok(vec![book_dto(
                 book_id(),
                 author_id.0,
@@ -657,8 +759,9 @@ mod tests {
 
     #[async_trait]
     impl BookQueryService for MockBookQueryService {
-        async fn list_books(&self) -> Result<Vec<BookDto>, AppError> {
-            self.calls.record("book_queries.list_books");
+        async fn list_books(&self, limit: BookListLimit) -> Result<Vec<BookDto>, AppError> {
+            self.calls
+                .record(format!("book_queries.list_books:{}", limit.value()));
             Ok(vec![book_dto(
                 book_id(),
                 author_id(),

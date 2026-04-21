@@ -44,15 +44,28 @@ func (h *AuthorQueryHandler) List(ctx context.Context) ([]domain.Author, error) 
 }
 
 func (h *AuthorQueryHandler) Books(ctx context.Context, id uuid.UUID) ([]domain.Book, error) {
+	return h.BooksWithOptions(ctx, id, DefaultBookListOptions())
+}
+
+func (h *AuthorQueryHandler) BooksWithOptions(ctx context.Context, id uuid.UUID, options BookListOptions) ([]domain.Book, error) {
 	ctx, span := authorQueryTracer.Start(ctx, "AuthorQuery.Books")
 	defer span.End()
-	span.SetAttributes(attribute.String("author.id", id.String()))
+
+	options, err := NormalizeBookListOptions(options)
+	if err != nil {
+		telemetry.RecordSpanError(span, err)
+		return nil, err
+	}
+	span.SetAttributes(
+		attribute.String("author.id", id.String()),
+		attribute.Int("book.limit", options.Limit),
+	)
 
 	if _, err := h.authors.Get(ctx, id); err != nil {
 		telemetry.RecordSpanErrorUnless(span, err, ErrNotFound)
 		return nil, err
 	}
-	books, err := h.books.ListByAuthor(ctx, id)
+	books, err := h.books.ListByAuthor(ctx, id, options)
 	telemetry.RecordSpanError(span, err)
 	if err == nil {
 		span.SetAttributes(attribute.Int("book.count", len(books)))

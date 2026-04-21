@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     domain::{
         author::AuthorId,
-        book::{Book, BookCommandRepository, BookId, BookQueryRepository},
+        book::{Book, BookCommandRepository, BookId, BookListLimit, BookQueryRepository},
     },
     error::AppError,
 };
@@ -95,32 +95,40 @@ impl BookCommandRepository for PostgresBookRepository {
 
 #[async_trait]
 impl BookQueryRepository for PostgresBookRepository {
-    #[tracing::instrument(name = "postgres.books.list", skip(self), err)]
-    async fn list(&self) -> Result<Vec<Book>, AppError> {
+    #[tracing::instrument(name = "postgres.books.list", skip(self), fields(limit = limit.value()), err)]
+    async fn list(&self, limit: BookListLimit) -> Result<Vec<Book>, AppError> {
         let rows = sqlx::query_as::<_, BookRow>(
             r#"
             SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             ORDER BY title ASC
+            LIMIT $1
             "#,
         )
+        .bind(i64::from(limit.value()))
         .fetch_all(&self.pool)
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "postgres.books.list_by_author", skip(self), fields(author.id = %author_id), err)]
-    async fn list_by_author(&self, author_id: AuthorId) -> Result<Vec<Book>, AppError> {
+    #[tracing::instrument(name = "postgres.books.list_by_author", skip(self), fields(author.id = %author_id, limit = limit.value()), err)]
+    async fn list_by_author(
+        &self,
+        author_id: AuthorId,
+        limit: BookListLimit,
+    ) -> Result<Vec<Book>, AppError> {
         let rows = sqlx::query_as::<_, BookRow>(
             r#"
             SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             WHERE author_id = $1
             ORDER BY title ASC
+            LIMIT $2
             "#,
         )
         .bind(author_id.0)
+        .bind(i64::from(limit.value()))
         .fetch_all(&self.pool)
         .await?;
 

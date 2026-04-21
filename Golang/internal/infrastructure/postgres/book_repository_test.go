@@ -49,17 +49,18 @@ func TestBookRepositoryCreateGetListByAuthorUpdateDelete(t *testing.T) {
 	require.Equal(t, book, found)
 
 	db.ExpectQuery("SELECT id, author_id, title, isbn, published_year, created_at, updated_at").
+		WithArgs(application.DefaultBookListLimit).
 		WillReturnRows(bookRows(book))
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, application.DefaultBookListOptions())
 	require.NoError(t, err)
 	require.Equal(t, []domain.Book{book}, list)
 
 	db.ExpectQuery("SELECT id, author_id, title, isbn, published_year, created_at, updated_at").
-		WithArgs(book.AuthorID).
+		WithArgs(book.AuthorID, application.DefaultBookListLimit).
 		WillReturnRows(bookRows(book))
 
-	byAuthor, err := repo.ListByAuthor(ctx, book.AuthorID)
+	byAuthor, err := repo.ListByAuthor(ctx, book.AuthorID, application.DefaultBookListOptions())
 	require.NoError(t, err)
 	require.Equal(t, []domain.Book{book}, byAuthor)
 

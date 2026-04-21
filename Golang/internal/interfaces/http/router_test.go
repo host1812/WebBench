@@ -117,19 +117,25 @@ func (s *bookStore) Get(ctx context.Context, id uuid.UUID) (domain.Book, error) 
 	return book, nil
 }
 
-func (s *bookStore) List(ctx context.Context) ([]domain.Book, error) {
+func (s *bookStore) List(ctx context.Context, options application.BookListOptions) ([]domain.Book, error) {
 	books := make([]domain.Book, 0, len(s.books))
 	for _, book := range s.books {
 		books = append(books, book)
+		if len(books) == options.Limit {
+			break
+		}
 	}
 	return books, nil
 }
 
-func (s *bookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]domain.Book, error) {
+func (s *bookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID, options application.BookListOptions) ([]domain.Book, error) {
 	books := make([]domain.Book, 0)
 	for _, book := range s.books {
 		if book.AuthorID == authorID {
 			books = append(books, book)
+			if len(books) == options.Limit {
+				break
+			}
 		}
 	}
 	return books, nil
@@ -288,6 +294,32 @@ func TestRouterSupportsGetListUpdateAndDelete(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, deleteAuthor.Code)
 }
 
+func TestRouterSupportsBookListLimit(t *testing.T) {
+	router := newTestRouter()
+	author := createAuthor(t, router)
+	createBookWithTitle(t, router, author.ID, "Book One")
+	createBookWithTitle(t, router, author.ID, "Book Two")
+
+	listBooks := performRequest(router, http.MethodGet, "/api/v1/books?limit=1", "")
+	require.Equal(t, http.StatusOK, listBooks.Code)
+
+	var books []bookResponse
+	require.NoError(t, json.Unmarshal(listBooks.Body.Bytes(), &books))
+	require.Len(t, books, 1)
+
+	filteredBooks := performRequest(router, http.MethodGet, "/api/v1/books?author_id="+author.ID+"&limit=1", "")
+	require.Equal(t, http.StatusOK, filteredBooks.Code)
+
+	require.NoError(t, json.Unmarshal(filteredBooks.Body.Bytes(), &books))
+	require.Len(t, books, 1)
+
+	authorBooks := performRequest(router, http.MethodGet, "/api/v1/authors/"+author.ID+"/books?limit=1", "")
+	require.Equal(t, http.StatusOK, authorBooks.Code)
+
+	require.NoError(t, json.Unmarshal(authorBooks.Body.Bytes(), &books))
+	require.Len(t, books, 1)
+}
+
 func TestRouterReturnsBadRequestForInvalidBodyAndQuery(t *testing.T) {
 	router := newTestRouter()
 
@@ -296,6 +328,15 @@ func TestRouterReturnsBadRequestForInvalidBodyAndQuery(t *testing.T) {
 
 	badQuery := performRequest(router, http.MethodGet, "/api/v1/books?author_id=bad", "")
 	require.Equal(t, http.StatusBadRequest, badQuery.Code)
+
+	badLimit := performRequest(router, http.MethodGet, "/api/v1/books?limit=0", "")
+	require.Equal(t, http.StatusBadRequest, badLimit.Code)
+
+	tooLargeLimit := performRequest(router, http.MethodGet, "/api/v1/books?limit=100001", "")
+	require.Equal(t, http.StatusBadRequest, tooLargeLimit.Code)
+
+	nonNumericLimit := performRequest(router, http.MethodGet, "/api/v1/books?limit=abc", "")
+	require.Equal(t, http.StatusBadRequest, nonNumericLimit.Code)
 }
 
 func createAuthor(t *testing.T, router http.Handler) authorResponse {
@@ -313,7 +354,13 @@ func createAuthor(t *testing.T, router http.Handler) authorResponse {
 func createBook(t *testing.T, router http.Handler, authorID string) bookResponse {
 	t.Helper()
 
-	body := `{"author_id":"` + authorID + `","title":"A Wizard of Earthsea","isbn":"9780547773742","published_year":1968}`
+	return createBookWithTitle(t, router, authorID, "A Wizard of Earthsea")
+}
+
+func createBookWithTitle(t *testing.T, router http.Handler, authorID string, title string) bookResponse {
+	t.Helper()
+
+	body := `{"author_id":"` + authorID + `","title":"` + title + `","isbn":"9780547773742","published_year":1968}`
 	recorder := performRequest(router, http.MethodPost, "/api/v1/books", body)
 	require.Equal(t, http.StatusCreated, recorder.Code)
 

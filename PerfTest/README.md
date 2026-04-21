@@ -40,14 +40,19 @@ Every iteration calls:
 
 - `GET /health`
 - `GET /api/v1/authors`
-- `GET /api/v1/books`
+- `GET /api/v1/books?limit=10`
+- `GET /api/v1/books?limit=100`
+- `GET /api/v1/books?limit=1000`
+- `GET /api/v1/books`, which uses the service default limit of 10,000
+- `GET /api/v1/books?limit=50000`
+- `GET /api/v1/books?limit=100000`
 
 When IDs are provided, it also calls:
 
 - `GET /api/v1/books?author_id=<author-id>`
 - `GET /api/v1/books/<book-id>`
 
-Each request is tagged with an `endpoint` value so k6 output can separate latency by endpoint.
+Each request is tagged with an `endpoint` value so k6 output can separate latency by endpoint. The limit-based book calls use tags such as `books_limit_10`, `books_limit_10000_default`, and `books_limit_100000`.
 
 ## Thresholds
 
@@ -71,7 +76,7 @@ k6 prints summary trend stats for `avg`, `min`, `med`, `p(90)`, `p(95)`, `p(99)`
 - `http_req_failed` shows the failed request rate.
 - The HTML dashboard report is copied back to `perf/reports/books-read-<timestamp>.html`.
 
-`GET /api/v1/books` returns a large response, so it may dominate overall latency and make the aggregate p95/p99 higher than the smaller endpoints.
+The larger `GET /api/v1/books` limit calls return large responses, so they may dominate overall latency, bandwidth, and aggregate p95/p99 more than the smaller endpoints.
 
 ## Self-Signed Certificates
 

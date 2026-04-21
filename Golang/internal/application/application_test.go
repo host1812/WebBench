@@ -120,19 +120,25 @@ func (s memoryBookStore) Get(ctx context.Context, id uuid.UUID) (domain.Book, er
 	return book, nil
 }
 
-func (s memoryBookStore) List(ctx context.Context) ([]domain.Book, error) {
+func (s memoryBookStore) List(ctx context.Context, options application.BookListOptions) ([]domain.Book, error) {
 	books := make([]domain.Book, 0, len(s.books))
 	for _, book := range s.books {
 		books = append(books, book)
+		if len(books) == options.Limit {
+			break
+		}
 	}
 	return books, nil
 }
 
-func (s memoryBookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]domain.Book, error) {
+func (s memoryBookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID, options application.BookListOptions) ([]domain.Book, error) {
 	books := make([]domain.Book, 0)
 	for _, book := range s.books {
 		if book.AuthorID == authorID {
 			books = append(books, book)
+			if len(books) == options.Limit {
+				break
+			}
 		}
 	}
 	return books, nil
@@ -202,7 +208,7 @@ func TestBookQueriesUpdateAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, book.ID, found.ID)
 
-	books, err := bookQueries.List(ctx)
+	books, err := bookQueries.List(ctx, application.DefaultBookListOptions())
 	require.NoError(t, err)
 	require.Len(t, books, 1)
 
@@ -219,6 +225,15 @@ func TestBookQueriesUpdateAndDelete(t *testing.T) {
 	require.NoError(t, bookCommands.Delete(ctx, application.DeleteBookCommand{ID: book.ID}))
 	_, err = bookQueries.Get(ctx, book.ID)
 	require.True(t, errors.Is(err, application.ErrNotFound))
+}
+
+func TestBookQueriesValidateLimit(t *testing.T) {
+	store := newMemoryStore()
+	bookQueries := application.NewBookQueryHandler(memoryBookStore{memoryStore: store})
+
+	_, err := bookQueries.List(context.Background(), application.BookListOptions{Limit: application.MaxBookListLimit + 1})
+
+	require.True(t, errors.Is(err, application.ErrInvalidInput))
 }
 
 func TestCreateBookRequiresExistingAuthor(t *testing.T) {

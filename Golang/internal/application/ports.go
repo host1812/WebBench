@@ -26,6 +26,6 @@ type BookCommandStore interface {
 
 type BookQueryStore interface {
 	Get(ctx context.Context, id uuid.UUID) (domain.Book, error)
-	List(ctx context.Context) ([]domain.Book, error)
-	ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]domain.Book, error)
+	List(ctx context.Context, options BookListOptions) ([]domain.Book, error)
+	ListByAuthor(ctx context.Context, authorID uuid.UUID, options BookListOptions) ([]domain.Book, error)
 }

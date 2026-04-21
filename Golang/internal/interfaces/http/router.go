@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -260,7 +261,12 @@ func (h handlers) listAuthorBooks(c *gin.Context) {
 		return
 	}
 
-	books, err := h.authorQueries.Books(c.Request.Context(), id)
+	options, ok := parseBookListOptions(c)
+	if !ok {
+		return
+	}
+
+	books, err := h.authorQueries.BooksWithOptions(c.Request.Context(), id, options)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -296,6 +302,11 @@ func (h handlers) createBook(c *gin.Context) {
 }
 
 func (h handlers) listBooks(c *gin.Context) {
+	options, ok := parseBookListOptions(c)
+	if !ok {
+		return
+	}
+
 	authorIDValue := c.Query("author_id")
 	if authorIDValue != "" {
 		authorID, err := uuid.Parse(authorIDValue)
@@ -303,7 +314,7 @@ func (h handlers) listBooks(c *gin.Context) {
 			writeError(c, validationError("invalid author id"))
 			return
 		}
-		books, err := h.bookQueries.ListByAuthor(c.Request.Context(), authorID)
+		books, err := h.bookQueries.ListByAuthor(c.Request.Context(), authorID, options)
 		if err != nil {
 			writeError(c, err)
 			return
@@ -312,7 +323,7 @@ func (h handlers) listBooks(c *gin.Context) {
 		return
 	}
 
-	books, err := h.bookQueries.List(c.Request.Context())
+	books, err := h.bookQueries.List(c.Request.Context(), options)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -385,6 +396,27 @@ func parseID(c *gin.Context, param string) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+func parseBookListOptions(c *gin.Context) (application.BookListOptions, bool) {
+	options := application.DefaultBookListOptions()
+	value := c.Query("limit")
+	if value == "" {
+		return options, true
+	}
+
+	limit, err := strconv.Atoi(value)
+	if err != nil {
+		writeError(c, validationError("invalid limit"))
+		return application.BookListOptions{}, false
+	}
+	if limit < application.MinBookListLimit || limit > application.MaxBookListLimit {
+		writeError(c, validationError("limit must be between 1 and 100000"))
+		return application.BookListOptions{}, false
+	}
+
+	options.Limit = limit
+	return options, true
 }
 
 func validationError(message string) error {

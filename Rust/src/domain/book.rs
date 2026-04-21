@@ -7,6 +7,10 @@ use uuid::Uuid;
 
 use crate::{domain::author::AuthorId, error::AppError};
 
+pub const DEFAULT_BOOK_LIST_LIMIT: u32 = 10_000;
+pub const MIN_BOOK_LIST_LIMIT: u32 = 1;
+pub const MAX_BOOK_LIST_LIMIT: u32 = 100_000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BookId(pub Uuid);
@@ -26,6 +30,31 @@ impl Display for BookId {
 impl From<Uuid> for BookId {
     fn from(value: Uuid) -> Self {
         Self(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BookListLimit(u32);
+
+impl BookListLimit {
+    pub fn new(value: u32) -> Result<Self, AppError> {
+        if !(MIN_BOOK_LIST_LIMIT..=MAX_BOOK_LIST_LIMIT).contains(&value) {
+            return Err(AppError::Validation(format!(
+                "limit must be between {MIN_BOOK_LIST_LIMIT} and {MAX_BOOK_LIST_LIMIT}"
+            )));
+        }
+
+        Ok(Self(value))
+    }
+
+    pub fn value(self) -> u32 {
+        self.0
+    }
+}
+
+impl Default for BookListLimit {
+    fn default() -> Self {
+        Self(DEFAULT_BOOK_LIST_LIMIT)
     }
 }
 
@@ -89,8 +118,12 @@ pub trait BookCommandRepository: Send + Sync {
 
 #[async_trait]
 pub trait BookQueryRepository: Send + Sync {
-    async fn list(&self) -> Result<Vec<Book>, AppError>;
-    async fn list_by_author(&self, author_id: AuthorId) -> Result<Vec<Book>, AppError>;
+    async fn list(&self, limit: BookListLimit) -> Result<Vec<Book>, AppError>;
+    async fn list_by_author(
+        &self,
+        author_id: AuthorId,
+        limit: BookListLimit,
+    ) -> Result<Vec<Book>, AppError>;
     async fn get(&self, book_id: BookId) -> Result<Option<Book>, AppError>;
 }
 
@@ -124,7 +157,7 @@ mod tests {
 
     use crate::{domain::author::AuthorId, error::AppError};
 
-    use super::Book;
+    use super::{Book, BookListLimit, DEFAULT_BOOK_LIST_LIMIT};
 
     #[test]
     fn create_trims_title_and_isbn() {
@@ -212,6 +245,29 @@ mod tests {
         assert_eq!(book.isbn, "new-isbn");
         assert_eq!(book.published_year, Some(2024));
         assert!(book.updated_at >= original_updated_at);
+    }
+
+    #[test]
+    fn list_limit_defaults_to_ten_thousand() {
+        assert_eq!(BookListLimit::default().value(), DEFAULT_BOOK_LIST_LIMIT);
+    }
+
+    #[test]
+    fn list_limit_accepts_range_boundaries() {
+        assert_eq!(BookListLimit::new(1).unwrap().value(), 1);
+        assert_eq!(BookListLimit::new(100_000).unwrap().value(), 100_000);
+    }
+
+    #[test]
+    fn list_limit_rejects_out_of_range_values() {
+        assert!(matches!(
+            BookListLimit::new(0),
+            Err(AppError::Validation(_))
+        ));
+        assert!(matches!(
+            BookListLimit::new(100_001),
+            Err(AppError::Validation(_))
+        ));
     }
 
     fn author_id() -> AuthorId {

@@ -114,7 +114,7 @@ mod tests {
         application::books::{CreateBookInput, UpdateBookInput},
         domain::{
             author::{Author, AuthorId, AuthorQueryRepository},
-            book::{Book, BookCommandRepository, BookId, BookQueryRepository},
+            book::{Book, BookCommandRepository, BookId, BookListLimit, BookQueryRepository},
         },
         error::AppError,
     };
@@ -269,11 +269,15 @@ mod tests {
 
     #[async_trait]
     impl BookQueryRepository for FakeBookRepository {
-        async fn list(&self) -> Result<Vec<Book>, AppError> {
+        async fn list(&self, _limit: BookListLimit) -> Result<Vec<Book>, AppError> {
             Ok(self.book.lock().unwrap().clone().into_iter().collect())
         }
 
-        async fn list_by_author(&self, _author_id: AuthorId) -> Result<Vec<Book>, AppError> {
+        async fn list_by_author(
+            &self,
+            _author_id: AuthorId,
+            _limit: BookListLimit,
+        ) -> Result<Vec<Book>, AppError> {
             Ok(self.book.lock().unwrap().clone().into_iter().collect())
         }
 

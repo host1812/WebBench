@@ -6,14 +6,14 @@ use crate::{
     application::authors::BookDto,
     domain::{
         author::AuthorQueryRepository,
-        book::{BookId, BookQueryRepository},
+        book::{BookId, BookListLimit, BookQueryRepository},
     },
     error::AppError,
 };
 
 #[async_trait]
 pub trait BookQueryService: Send + Sync {
-    async fn list_books(&self) -> Result<Vec<BookDto>, AppError>;
+    async fn list_books(&self, limit: BookListLimit) -> Result<Vec<BookDto>, AppError>;
     async fn get_book(&self, book_id: BookId) -> Result<BookDto, AppError>;
 }
 
@@ -33,9 +33,9 @@ impl BookQueryHandler {
 
 #[async_trait]
 impl BookQueryService for BookQueryHandler {
-    #[tracing::instrument(name = "books.query.list", skip(self), err)]
-    async fn list_books(&self) -> Result<Vec<BookDto>, AppError> {
-        let books = self.books.list().await?;
+    #[tracing::instrument(name = "books.query.list", skip(self), fields(limit = limit.value()), err)]
+    async fn list_books(&self, limit: BookListLimit) -> Result<Vec<BookDto>, AppError> {
+        let books = self.books.list(limit).await?;
         Ok(books.into_iter().map(Into::into).collect())
     }
 
@@ -68,7 +68,7 @@ mod tests {
     use crate::{
         domain::{
             author::{Author, AuthorId, AuthorQueryRepository},
-            book::{Book, BookId, BookQueryRepository},
+            book::{Book, BookId, BookListLimit, BookQueryRepository},
         },
         error::AppError,
     };
@@ -82,7 +82,7 @@ mod tests {
             Arc::new(FakeAuthors::new(Some(author()))),
         );
 
-        let books = handler.list_books().await.unwrap();
+        let books = handler.list_books(BookListLimit::default()).await.unwrap();
 
         assert_eq!(books.len(), 1);
         assert_eq!(books[0].title, "Book One");
@@ -143,11 +143,15 @@ mod tests {
 
     #[async_trait]
     impl BookQueryRepository for FakeBooks {
-        async fn list(&self) -> Result<Vec<Book>, AppError> {
+        async fn list(&self, _limit: BookListLimit) -> Result<Vec<Book>, AppError> {
             Ok(self.book.clone().into_iter().collect())
         }
 
-        async fn list_by_author(&self, _author_id: AuthorId) -> Result<Vec<Book>, AppError> {
+        async fn list_by_author(
+            &self,
+            _author_id: AuthorId,
+            _limit: BookListLimit,
+        ) -> Result<Vec<Book>, AppError> {
             Ok(self.book.clone().into_iter().collect())
         }
 
