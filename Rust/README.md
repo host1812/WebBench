@@ -57,6 +57,8 @@ If both database connection strings are present, `BOOKSVC_DATABASE_CONNECTION_ST
 
 Docker Compose also forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` as `BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING` for images that expect the nested `BOOKSVC_TELEMETRY_*` name.
 
+When telemetry is enabled, startup logs should include `application insights telemetry enabled`. If telemetry is explicitly enabled without an Application Insights connection string, startup fails.
+
 ## Endpoints
 
 ```text

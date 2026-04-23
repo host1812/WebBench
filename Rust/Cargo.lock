@@ -1613,6 +1613,7 @@ dependencies = [
  "http",
  "opentelemetry",
  "opentelemetry-application-insights",
+ "opentelemetry-http",
  "opentelemetry_sdk",
  "reqwest",
  "serde",

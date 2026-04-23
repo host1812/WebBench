@@ -4,6 +4,7 @@ import (
 	"github.com/webbench/golang-service/internal/application"
 	"github.com/webbench/golang-service/internal/infrastructure/postgres"
 	httpapi "github.com/webbench/golang-service/internal/interfaces/http"
+	"github.com/webbench/golang-service/internal/telemetry"
 	"go.uber.org/fx"
 )
 
@@ -37,6 +38,7 @@ func Module() fx.Option {
 			httpapi.NewRouter,
 			httpapi.NewHTTPServer,
 		),
+		fx.Invoke(telemetry.Register),
 		fx.Invoke(httpapi.RegisterServerLifecycle),
 	)
 }

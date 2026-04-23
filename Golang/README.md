@@ -22,6 +22,14 @@ Health check:
 curl http://localhost:8080/health
 ```
 
+Telemetry:
+
+- the Go service uses OpenTelemetry
+- HTTP requests are traced with Gin middleware
+- command/query handlers and PostgreSQL repository calls create child spans
+- VM deployment sends OTLP traces to an OpenTelemetry Collector
+- the Collector exports to Azure Application Insights with the configured connection string
+
 ## Docker
 
 Create `.env` first:

@@ -1,5 +1,6 @@
 use opentelemetry::{KeyValue, trace::TracerProvider as _};
 use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator, trace::SdkTracerProvider};
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{config::AppConfig, error::AppError};
@@ -54,6 +55,16 @@ pub fn init_tracing(config: &AppConfig) -> Result<TelemetryGuard, AppError> {
         .with(otel_layer)
         .init();
 
+    if telemetry.is_enabled() {
+        info!(
+            service.name = %config.observability.service_name,
+            deployment.environment = %config.observability.environment,
+            "application insights telemetry enabled"
+        );
+    } else {
+        info!("application insights telemetry disabled");
+    }
+
     Ok(telemetry)
 }
 
@@ -62,19 +73,33 @@ fn create_application_insights_telemetry(config: &AppConfig) -> Result<Telemetry
         return Ok(TelemetryGuard::disabled());
     }
 
-    let Some(connection_string) = config
+    let connection_string = config
         .observability
         .application_insights_connection_string
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
+        .filter(|value| !value.is_empty());
+
+    let Some(connection_string) = connection_string else {
+        if config.observability.telemetry_enabled == Some(true) {
+            return Err(AppError::Validation(
+                "APPLICATIONINSIGHTS_CONNECTION_STRING is required when telemetry is enabled"
+                    .to_owned(),
+            ));
+        }
+
         return Ok(TelemetryGuard::disabled());
     };
 
+    // with_batch_exporter runs exports on a dedicated thread, so it must use a sync client.
+    // Build the blocking client off the Tokio runtime to avoid reqwest blocking-client panics.
+    let client = std::thread::spawn(reqwest::blocking::Client::new)
+        .join()
+        .map_err(|_| AppError::Telemetry("failed to create telemetry HTTP client".to_owned()))?;
+
     let exporter = opentelemetry_application_insights::Exporter::new_from_connection_string(
         connection_string.to_owned(),
-        reqwest::Client::new(),
+        client,
     )
     .map_err(|error| AppError::Telemetry(error.to_string()))?;
 
@@ -92,4 +117,73 @@ fn create_application_insights_telemetry(config: &AppConfig) -> Result<Telemetry
         .build();
 
     Ok(TelemetryGuard::enabled(tracer_provider))
+}
+
+impl TelemetryGuard {
+    fn is_enabled(&self) -> bool {
+        self.tracer_provider.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{AppConfig, DatabaseConfig, ObservabilityConfig, ServerConfig};
+
+    use super::create_application_insights_telemetry;
+
+    #[test]
+    fn telemetry_is_disabled_when_explicitly_disabled() {
+        let mut config = test_config();
+        config.observability.telemetry_enabled = Some(false);
+        config.observability.application_insights_connection_string =
+            Some(connection_string().to_owned());
+
+        let guard = create_application_insights_telemetry(&config).unwrap();
+
+        assert!(!guard.is_enabled());
+    }
+
+    #[test]
+    fn telemetry_requires_connection_string_when_enabled() {
+        let mut config = test_config();
+        config.observability.telemetry_enabled = Some(true);
+
+        let error = match create_application_insights_telemetry(&config) {
+            Ok(_) => panic!("telemetry should require a connection string when enabled"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error
+                .to_string()
+                .contains("APPLICATIONINSIGHTS_CONNECTION_STRING")
+        );
+    }
+
+    #[test]
+    fn telemetry_is_enabled_when_connection_string_is_configured() {
+        let mut config = test_config();
+        config.observability.telemetry_enabled = Some(true);
+        config.observability.application_insights_connection_string =
+            Some(connection_string().to_owned());
+
+        let guard = create_application_insights_telemetry(&config).unwrap();
+
+        assert!(guard.is_enabled());
+    }
+
+    fn test_config() -> AppConfig {
+        AppConfig {
+            server: ServerConfig::default(),
+            database: DatabaseConfig {
+                connection_string: "postgres://postgres:postgres@postgres:5432/books".to_owned(),
+                max_connections: 10,
+            },
+            observability: ObservabilityConfig::default(),
+        }
+    }
+
+    fn connection_string() -> &'static str {
+        "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.applicationinsights.azure.com/"
+    }
 }

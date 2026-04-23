@@ -4,3 +4,10 @@ http:
 database:
   connection_string: ""
   max_connections: 10
+
+telemetry:
+  enabled: false
+  service_name: "books-service"
+  environment: "local"
+  otlp_endpoint: "otel-collector:4318"
+  application_insights_connection_string: ""

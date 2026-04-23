@@ -152,7 +152,15 @@ BOOKSVC_TELEMETRY_ENVIRONMENT=azure-vm
 BOOKSVC_TELEMETRY_OTLP_ENDPOINT=otel-collector:4318
 ```
 
-Telemetry includes HTTP request spans, CQRS handler spans, repository spans, startup events, health checks, and structured tracing events. `BOOKSVC_TELEMETRY_OTLP_ENDPOINT` is accepted in configuration for compatibility with the deployment environment; the current Rust service exports directly to Application Insights using the configured connection string.
+Telemetry includes HTTP request spans, CQRS handler spans, repository spans, startup events, health checks, and structured tracing events. `BOOKSVC_TELEMETRY_OTLP_ENDPOINT` is accepted in configuration for compatibility with the deployment environment; the current Rust service exports directly to Application Insights using the configured connection string, not through the OTLP collector.
+
+On startup, verify the API logs contain:
+
+```text
+application insights telemetry enabled
+```
+
+If `BOOKSVC_TELEMETRY_ENABLED=true` and the Application Insights connection string is missing, the service now fails startup instead of silently disabling telemetry.
 
 Compose forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` to the API as both `APPLICATIONINSIGHTS_CONNECTION_STRING` and `BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING`. This keeps the VM `.env` stable even if an image expects the nested telemetry variable name.
 
