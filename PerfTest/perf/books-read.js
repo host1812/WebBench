@@ -24,6 +24,26 @@ if (!baseUrl) {
   throw new Error('BASE_URL is required. Example: BASE_URL=https://<service-public-ip-or-dns>');
 }
 
+const thresholds = {
+  http_req_failed: ['rate<0.01'],
+  'http_req_duration{endpoint:health}': ['p(95)<300', 'p(99)<750'],
+  'http_req_duration{endpoint:authors}': ['p(95)<1000', 'p(99)<2500'],
+  'http_req_duration{endpoint:books_limit_10}': ['p(95)<1000', 'p(99)<2500'],
+  'http_req_duration{endpoint:books_limit_100}': ['p(95)<1500', 'p(99)<3000'],
+  'http_req_duration{endpoint:books_limit_1000}': ['p(95)<3000', 'p(99)<6000'],
+  'http_req_duration{endpoint:books_limit_10000_default}': ['p(95)<10000', 'p(99)<20000'],
+  'http_req_duration{endpoint:books_limit_50000}': ['p(95)<30000', 'p(99)<60000'],
+  'http_req_duration{endpoint:books_limit_100000}': ['p(95)<60000', 'p(99)<120000'],
+};
+
+if (authorId) {
+  thresholds['http_req_duration{endpoint:books_by_author}'] = ['p(95)<10000', 'p(99)<20000'];
+}
+
+if (bookId) {
+  thresholds['http_req_duration{endpoint:book_by_id}'] = ['p(95)<1000', 'p(99)<2500'];
+}
+
 export const options = {
   insecureSkipTLSVerify: skipTlsVerify,
   stages: [
@@ -31,11 +51,7 @@ export const options = {
     { duration: holdDuration, target: Number.isFinite(targetVus) && targetVus > 0 ? targetVus : 25 },
     { duration: '30s', target: 0 },
   ],
-  thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<1000', 'p(99)<2500'],
-    'http_req_duration{endpoint:health}': ['p(95)<300', 'p(99)<750'],
-  },
+  thresholds,
   summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };
 

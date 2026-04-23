@@ -59,10 +59,10 @@ Each request is tagged with an `endpoint` value so k6 output can separate latenc
 The test fails when any threshold fails:
 
 - Failed HTTP request rate must be below 1%.
-- Overall p95 latency must be below 1000 ms.
-- Overall p99 latency must be below 2500 ms.
 - `/health` p95 latency must be below 300 ms.
 - `/health` p99 latency must be below 750 ms.
+- `/api/v1/authors`, `books_limit_10`, and `book_by_id` p95/p99 must stay below 1000 ms / 2500 ms.
+- Larger books-list thresholds scale by response size, up to 60 seconds p95 and 120 seconds p99 for `books_limit_100000`.
 
 The PowerShell runner preserves the k6 exit code, so threshold failures fail the script.
 
@@ -76,7 +76,7 @@ k6 prints summary trend stats for `avg`, `min`, `med`, `p(90)`, `p(95)`, `p(99)`
 - `http_req_failed` shows the failed request rate.
 - The HTML dashboard report is copied back to `perf/reports/books-read-<timestamp>.html`.
 
-The larger `GET /api/v1/books` limit calls return large responses, so they may dominate overall latency, bandwidth, and aggregate p95/p99 more than the smaller endpoints.
+The larger `GET /api/v1/books` limit calls return large responses, so they may dominate bandwidth and total test duration. Latency thresholds are endpoint-specific, so a slow `books_limit_100000` result does not get blended into a single aggregate latency gate for the smaller endpoints.
 
 ## Self-Signed Certificates
 
