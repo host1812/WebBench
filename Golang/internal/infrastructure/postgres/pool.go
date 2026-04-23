@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/webbench/golang-service/internal/config"
@@ -22,7 +23,18 @@ func NewPool(lc fx.Lifecycle, cfg config.Config) (*pgxpool.Pool, error) {
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			return pool.Ping(ctx)
+			if err := pool.Ping(ctx); err != nil {
+				return err
+			}
+			stat := pool.Stat()
+			log.Printf(
+				"database pool ready: max_connections=%d total_connections=%d idle_connections=%d acquired_connections=%d",
+				stat.MaxConns(),
+				stat.TotalConns(),
+				stat.IdleConns(),
+				stat.AcquiredConns(),
+			)
+			return nil
 		},
 		OnStop: func(ctx context.Context) error {
 			pool.Close()
