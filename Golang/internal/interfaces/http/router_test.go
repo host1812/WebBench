@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/webbench/golang-service/internal/application"
-	"github.com/webbench/golang-service/internal/config"
 	"github.com/webbench/golang-service/internal/domain"
 	httpapi "github.com/webbench/golang-service/internal/interfaces/http"
 )
@@ -171,12 +170,6 @@ func newTestRouterWithHealthError(healthErr error) *gin.Engine {
 	authors := newAuthorStore()
 	books := newBookStore()
 	return httpapi.NewRouter(
-		config.Config{
-			Telemetry: config.TelemetryConfig{
-				ServiceName: "books-service-test",
-				Environment: "test",
-			},
-		},
 		application.NewAuthorCommandHandler(authors, authors, testClock{now: now}),
 		application.NewAuthorQueryHandler(authors, books),
 		application.NewBookCommandHandler(books, books, authors, testClock{now: now}),

@@ -8,9 +8,8 @@ import (
 )
 
 type Config struct {
-	HTTP      HTTPConfig      `mapstructure:"http"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Telemetry TelemetryConfig `mapstructure:"telemetry"`
+	HTTP     HTTPConfig     `mapstructure:"http"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 type HTTPConfig struct {
@@ -22,14 +21,6 @@ type DatabaseConfig struct {
 	MaxConnections   int32  `mapstructure:"max_connections"`
 }
 
-type TelemetryConfig struct {
-	Enabled                             bool   `mapstructure:"enabled"`
-	ServiceName                         string `mapstructure:"service_name"`
-	Environment                         string `mapstructure:"environment"`
-	OTLPEndpoint                        string `mapstructure:"otlp_endpoint"`
-	ApplicationInsightsConnectionString string `mapstructure:"application_insights_connection_string"`
-}
-
 func Load(path string) (Config, error) {
 	if strings.TrimSpace(path) == "" {
 		path = "config.yaml"
@@ -39,21 +30,12 @@ func Load(path string) (Config, error) {
 	reader.SetConfigFile(path)
 	reader.SetDefault("http.address", ":8080")
 	reader.SetDefault("database.max_connections", 10)
-	reader.SetDefault("telemetry.enabled", false)
-	reader.SetDefault("telemetry.service_name", "books-service")
-	reader.SetDefault("telemetry.environment", "local")
-	reader.SetDefault("telemetry.otlp_endpoint", "otel-collector:4318")
 	reader.SetEnvPrefix("BOOKSVC")
 	reader.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	reader.AutomaticEnv()
 	_ = reader.BindEnv("http.address")
 	_ = reader.BindEnv("database.connection_string")
 	_ = reader.BindEnv("database.max_connections")
-	_ = reader.BindEnv("telemetry.enabled")
-	_ = reader.BindEnv("telemetry.service_name")
-	_ = reader.BindEnv("telemetry.environment")
-	_ = reader.BindEnv("telemetry.otlp_endpoint")
-	_ = reader.BindEnv("telemetry.application_insights_connection_string")
 
 	if err := reader.ReadInConfig(); err != nil {
 		return Config{}, fmt.Errorf("read config: %w", err)
@@ -79,18 +61,6 @@ func (c Config) Validate() error {
 	}
 	if c.Database.MaxConnections < 1 {
 		return fmt.Errorf("database.max_connections must be 1 or greater")
-	}
-	if strings.TrimSpace(c.Telemetry.ServiceName) == "" {
-		return fmt.Errorf("telemetry.service_name is required")
-	}
-	if strings.TrimSpace(c.Telemetry.Environment) == "" {
-		return fmt.Errorf("telemetry.environment is required")
-	}
-	if c.Telemetry.Enabled && strings.TrimSpace(c.Telemetry.ApplicationInsightsConnectionString) == "" {
-		return fmt.Errorf("telemetry.application_insights_connection_string is required when telemetry is enabled")
-	}
-	if c.Telemetry.Enabled && strings.TrimSpace(c.Telemetry.OTLPEndpoint) == "" {
-		return fmt.Errorf("telemetry.otlp_endpoint is required when telemetry is enabled")
 	}
 	return nil
 }

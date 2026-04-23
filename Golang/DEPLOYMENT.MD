@@ -4,7 +4,6 @@ The API deployment and database migrations are now separate concerns.
 
 The managed PostgreSQL database is outside Docker Compose. The VM runs:
 
-- an OpenTelemetry Collector container
 - the API container
 - an nginx gateway container that terminates HTTPS
 
@@ -19,7 +18,6 @@ The VM only needs:
   .env
   compose.yaml
   nginx.vm.conf
-  otel-collector-config.yaml
   certs/
     server.crt
     server.key
@@ -43,7 +41,6 @@ BOOKSVC_IMAGE=your-registry.azurecr.io/books-service-golang:latest
 BOOKSVC_DATABASE_CONNECTION_STRING=postgres://user:password@your-managed-postgres-host:5432/books?sslmode=require
 BOOKSVC_DATABASE_MAX_CONNECTIONS=10
 MIGRATIONS_DATABASE_CONNECTION_STRING=postgres://user:password@your-managed-postgres-host:5432/books?sslmode=require
-APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...;LiveEndpoint=...
 ```
 
 If the PostgreSQL password contains special URL characters, URL-encode it in `BOOKSVC_DATABASE_CONNECTION_STRING`.
@@ -120,7 +117,6 @@ The script:
 - copies `.env` as `/opt/books-service/.env`
 - copies `compose.vm.yaml` as `/opt/books-service/compose.yaml`
 - copies `nginx.vm.conf`
-- copies `otel-collector-config.yaml`
 - creates a self-signed HTTPS certificate if one does not already exist
 - runs `docker compose pull`
 - starts the HTTPS gateway with `docker compose up -d gateway`
@@ -156,25 +152,3 @@ curl -k https://<vm-public-ip>/health
 ```
 
 Open inbound TCP `443` in the Azure VM network security group. Open inbound TCP `80` if you want the Let's Encrypt step to succeed, because IP-address certificates are validated through the HTTP challenge path served by nginx.
-
-## Telemetry Verification
-
-Check that the Collector is running:
-
-```bash
-docker compose ps otel-collector
-```
-
-Check Collector logs:
-
-```bash
-docker compose logs -f otel-collector
-```
-
-Generate a request:
-
-```bash
-curl -k https://localhost/health
-```
-
-Then open Application Insights in the Azure portal. Trace data can take a few minutes to appear.

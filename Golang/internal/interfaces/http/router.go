@@ -13,7 +13,6 @@ import (
 	"github.com/webbench/golang-service/internal/application"
 	"github.com/webbench/golang-service/internal/config"
 	"github.com/webbench/golang-service/internal/domain"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/fx"
 )
 
@@ -80,7 +79,6 @@ type handlers struct {
 }
 
 func NewRouter(
-	cfg config.Config,
 	authorCommands *application.AuthorCommandHandler,
 	authorQueries *application.AuthorQueryHandler,
 	bookCommands *application.BookCommandHandler,
@@ -89,7 +87,6 @@ func NewRouter(
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(otelgin.Middleware(cfg.Telemetry.ServiceName))
 
 	h := handlers{
 		authorCommands: authorCommands,
