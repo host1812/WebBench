@@ -3,6 +3,7 @@ http:
 
 database:
   connection_string: ""
+  max_connections: 10
 
 telemetry:
   enabled: false

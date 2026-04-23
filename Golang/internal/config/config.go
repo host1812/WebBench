@@ -19,6 +19,7 @@ type HTTPConfig struct {
 
 type DatabaseConfig struct {
 	ConnectionString string `mapstructure:"connection_string"`
+	MaxConnections   int32  `mapstructure:"max_connections"`
 }
 
 type TelemetryConfig struct {
@@ -37,6 +38,7 @@ func Load(path string) (Config, error) {
 	reader := viper.New()
 	reader.SetConfigFile(path)
 	reader.SetDefault("http.address", ":8080")
+	reader.SetDefault("database.max_connections", 10)
 	reader.SetDefault("telemetry.enabled", false)
 	reader.SetDefault("telemetry.service_name", "books-service")
 	reader.SetDefault("telemetry.environment", "local")
@@ -46,6 +48,7 @@ func Load(path string) (Config, error) {
 	reader.AutomaticEnv()
 	_ = reader.BindEnv("http.address")
 	_ = reader.BindEnv("database.connection_string")
+	_ = reader.BindEnv("database.max_connections")
 	_ = reader.BindEnv("telemetry.enabled")
 	_ = reader.BindEnv("telemetry.service_name")
 	_ = reader.BindEnv("telemetry.environment")
@@ -73,6 +76,9 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Database.ConnectionString) == "" {
 		return fmt.Errorf("database.connection_string is required")
+	}
+	if c.Database.MaxConnections < 1 {
+		return fmt.Errorf("database.max_connections must be 1 or greater")
 	}
 	if strings.TrimSpace(c.Telemetry.ServiceName) == "" {
 		return fmt.Errorf("telemetry.service_name is required")

@@ -118,7 +118,7 @@ func (r *BookRepository) List(ctx context.Context, options application.BookListO
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, author_id, title, isbn, published_year, created_at, updated_at
 		FROM books
-		ORDER BY title ASC, created_at ASC
+		ORDER BY title ASC
 		LIMIT $1
 	`, options.Limit)
 	if err != nil {
@@ -147,7 +147,7 @@ func (r *BookRepository) ListByAuthor(ctx context.Context, authorID uuid.UUID, o
 		SELECT id, author_id, title, isbn, published_year, created_at, updated_at
 		FROM books
 		WHERE author_id = $1
-		ORDER BY title ASC, created_at ASC
+		ORDER BY title ASC
 		LIMIT $2
 	`, authorID, options.Limit)
 	if err != nil {

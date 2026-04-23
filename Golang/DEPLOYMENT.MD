@@ -41,6 +41,7 @@ Set these production values before deploying:
 ```text
 BOOKSVC_IMAGE=your-registry.azurecr.io/books-service-golang:latest
 BOOKSVC_DATABASE_CONNECTION_STRING=postgres://user:password@your-managed-postgres-host:5432/books?sslmode=require
+BOOKSVC_DATABASE_MAX_CONNECTIONS=10
 MIGRATIONS_DATABASE_CONNECTION_STRING=postgres://user:password@your-managed-postgres-host:5432/books?sslmode=require
 APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...;LiveEndpoint=...
 ```

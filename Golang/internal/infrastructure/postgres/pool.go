@@ -9,7 +9,13 @@ import (
 )
 
 func NewPool(lc fx.Lifecycle, cfg config.Config) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(context.Background(), cfg.Database.ConnectionString)
+	poolConfig, err := pgxpool.ParseConfig(cfg.Database.ConnectionString)
+	if err != nil {
+		return nil, err
+	}
+	poolConfig.MaxConns = cfg.Database.MaxConnections
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, err
 	}
