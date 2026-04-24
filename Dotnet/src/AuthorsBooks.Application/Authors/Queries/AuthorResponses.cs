@@ -6,6 +6,7 @@ namespace AuthorsBooks.Application.Authors.Queries;
 public sealed record AuthorSummaryResponse(
     Guid Id,
     string Name,
+    string Bio,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     int BookCount);
@@ -13,6 +14,7 @@ public sealed record AuthorSummaryResponse(
 public sealed record AuthorDetailsResponse(
     Guid Id,
     string Name,
+    string Bio,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     IReadOnlyList<BookResponse> Books);
@@ -23,6 +25,7 @@ public static class AuthorMappings
         new(
             author.Id,
             author.Name,
+            author.Bio,
             author.CreatedAtUtc,
             author.UpdatedAtUtc,
             author.Books

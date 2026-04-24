@@ -1,5 +1,5 @@
 namespace AuthorsBooks.Api.Contracts;
 
-public sealed record CreateAuthorRequest(string Name);
+public sealed record CreateAuthorRequest(string Name, string? Bio);
 
-public sealed record UpdateAuthorRequest(string Name);
+public sealed record UpdateAuthorRequest(string Name, string? Bio);

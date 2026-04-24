@@ -5,7 +5,7 @@ using AuthorsBooks.Application.Common;
 
 namespace AuthorsBooks.Application.Authors.Commands;
 
-public sealed record UpdateAuthorCommand(Guid AuthorId, string Name) : ICommand<AuthorDetailsResponse>;
+public sealed record UpdateAuthorCommand(Guid AuthorId, string Name, string? Bio) : ICommand<AuthorDetailsResponse>;
 
 internal sealed class UpdateAuthorCommandHandler(
     IAuthorRepository authorRepository,
@@ -18,7 +18,7 @@ internal sealed class UpdateAuthorCommandHandler(
         var author = await authorRepository.GetByIdAsync(request.AuthorId, cancellationToken)
             ?? throw new NotFoundException($"Author '{request.AuthorId}' was not found.");
 
-        author.Rename(request.Name, timeProvider.GetUtcNow());
+        author.Update(request.Name, request.Bio, timeProvider.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return author.ToDetailsResponse();
     }
@@ -42,6 +42,11 @@ internal sealed class UpdateAuthorCommandValidator : IValidator<UpdateAuthorComm
         else if (request.Name.Trim().Length > 200)
         {
             failures.Add(new ValidationFailure(nameof(request.Name), "Author name must be 200 characters or fewer."));
+        }
+
+        if (request.Bio is { Length: > 4000 })
+        {
+            failures.Add(new ValidationFailure(nameof(request.Bio), "Author bio must be 4000 characters or fewer."));
         }
 
         return failures;

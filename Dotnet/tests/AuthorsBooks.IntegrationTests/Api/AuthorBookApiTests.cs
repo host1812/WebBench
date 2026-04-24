@@ -12,7 +12,7 @@ public sealed class AuthorBookApiTests
         await using var factory = new TestWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var createdAuthorResponse = await client.PostAsJsonAsync("/authors", new CreateAuthorRequest("Terry Pratchett"));
+        var createdAuthorResponse = await client.PostAsJsonAsync("/authors", new CreateAuthorRequest("Terry Pratchett", "Fantasy author"));
         Assert.Equal(HttpStatusCode.Created, createdAuthorResponse.StatusCode);
         var author = await createdAuthorResponse.Content.ReadFromJsonAsync<AuthorDetailsResponse>();
         Assert.NotNull(author);
@@ -54,11 +54,11 @@ public sealed class AuthorBookApiTests
         Assert.True(errors.TryGetProperty("Take", out _));
     }
 
-    private sealed record CreateAuthorRequest(string Name);
+    private sealed record CreateAuthorRequest(string Name, string? Bio);
 
-    private sealed record CreateBookRequest(string Title, int PublicationYear, string? Isbn);
+    private sealed record CreateBookRequest(string Title, int? PublicationYear, string? Isbn);
 
-    private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int PublicationYear, string? Isbn);
+    private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int? PublicationYear, string Isbn);
 
-    private sealed record AuthorDetailsResponse(Guid Id, string Name, IReadOnlyList<BookResponse> Books);
+    private sealed record AuthorDetailsResponse(Guid Id, string Name, string Bio, IReadOnlyList<BookResponse> Books);
 }

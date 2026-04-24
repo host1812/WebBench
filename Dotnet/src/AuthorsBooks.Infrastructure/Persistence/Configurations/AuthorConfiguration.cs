@@ -13,14 +13,27 @@ internal sealed class AuthorConfiguration : IEntityTypeConfiguration<Author>
         builder.HasKey(author => author.Id);
 
         builder.Property(author => author.Id)
+            .HasColumnName("id")
             .ValueGeneratedNever();
 
         builder.Property(author => author.Name)
-            .HasMaxLength(200)
+            .HasColumnName("name")
+            .HasColumnType("text")
             .IsRequired();
 
-        builder.Property(author => author.CreatedAtUtc).IsRequired();
-        builder.Property(author => author.UpdatedAtUtc).IsRequired();
+        builder.Property(author => author.Bio)
+            .HasColumnName("bio")
+            .HasColumnType("text")
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(author => author.CreatedAtUtc)
+            .HasColumnName("created_at")
+            .IsRequired();
+
+        builder.Property(author => author.UpdatedAtUtc)
+            .HasColumnName("updated_at")
+            .IsRequired();
 
         builder.HasMany(author => author.Books)
             .WithOne()

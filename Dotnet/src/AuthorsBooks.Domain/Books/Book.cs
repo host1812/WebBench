@@ -8,7 +8,7 @@ public sealed class Book
     {
     }
 
-    internal Book(Guid id, Guid authorId, string title, int publicationYear, string? isbn, DateTimeOffset utcNow)
+    internal Book(Guid id, Guid authorId, string title, int? publicationYear, string? isbn, DateTimeOffset utcNow)
     {
         Id = id;
         AuthorId = authorId;
@@ -25,15 +25,15 @@ public sealed class Book
 
     public string Title { get; private set; } = string.Empty;
 
-    public int PublicationYear { get; private set; }
+    public int? PublicationYear { get; private set; }
 
-    public string? Isbn { get; private set; }
+    public string Isbn { get; private set; } = string.Empty;
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
-    internal void Update(string title, int publicationYear, string? isbn, DateTimeOffset utcNow)
+    internal void Update(string title, int? publicationYear, string? isbn, DateTimeOffset utcNow)
     {
         Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
         PublicationYear = Guard.AgainstOutOfRange(publicationYear, 1, 9999, nameof(publicationYear));
@@ -41,6 +41,6 @@ public sealed class Book
         UpdatedAtUtc = utcNow;
     }
 
-    private static string? NormalizeIsbn(string? isbn) =>
-        string.IsNullOrWhiteSpace(isbn) ? null : isbn.Trim();
+    private static string NormalizeIsbn(string? isbn) =>
+        Guard.NormalizeOptional(isbn);
 }

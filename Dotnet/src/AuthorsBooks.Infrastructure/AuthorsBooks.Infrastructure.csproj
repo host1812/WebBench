@@ -14,6 +14,22 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="OpenTelemetry.Api" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\Golang\db-migrations\migrations\002_seed_catalog.up.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.002_seed_catalog.up.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\Golang\db-migrations\migrations\002_seed_catalog.down.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.002_seed_catalog.down.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\Golang\db-migrations\migrations\003_seed_more_books.up.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.003_seed_more_books.up.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\Golang\db-migrations\migrations\003_seed_more_books.down.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.003_seed_more_books.down.sql</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

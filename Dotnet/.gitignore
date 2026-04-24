@@ -21,3 +21,6 @@ BenchmarkDotNet.Artifacts/
 
 # Local logs
 *.log
+
+# Local environment overrides
+.env

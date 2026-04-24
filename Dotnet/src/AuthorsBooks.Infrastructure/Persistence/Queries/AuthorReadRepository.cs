@@ -31,6 +31,7 @@ internal sealed class AuthorReadRepository(ApplicationDbContext dbContext) : IAu
             .Select(author => new AuthorSummaryResponse(
                 author.Id,
                 author.Name,
+                author.Bio,
                 author.CreatedAtUtc,
                 author.UpdatedAtUtc,
                 author.Books.Count))

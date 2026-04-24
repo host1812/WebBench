@@ -22,10 +22,10 @@ public sealed class DispatcherFlowTests
         await using var provider = CreateServiceProvider(store, telemetry);
         var dispatcher = provider.GetRequiredService<IRequestDispatcher>();
 
-        var created = await dispatcher.Send(new CreateAuthorCommand("Octavia Butler"));
+        var created = await dispatcher.Send(new CreateAuthorCommand("Octavia Butler", "Speculative fiction"));
         var listed = await dispatcher.Send(new ListAuthorsQuery());
         var fetched = await dispatcher.Send(new GetAuthorByIdQuery(created.Id));
-        var updated = await dispatcher.Send(new UpdateAuthorCommand(created.Id, "Octavia E. Butler"));
+        var updated = await dispatcher.Send(new UpdateAuthorCommand(created.Id, "Octavia E. Butler", "Updated bio"));
         await dispatcher.Send(new DeleteAuthorCommand(created.Id));
 
         Assert.Single(listed);
@@ -45,7 +45,7 @@ public sealed class DispatcherFlowTests
         await using var provider = CreateServiceProvider(store, telemetry);
         var dispatcher = provider.GetRequiredService<IRequestDispatcher>();
 
-        var author = await dispatcher.Send(new CreateAuthorCommand("Frank Herbert"));
+        var author = await dispatcher.Send(new CreateAuthorCommand("Frank Herbert", null));
         var firstBook = await dispatcher.Send(new CreateBookCommand(author.Id, "Dune", 1965, "123"));
         var secondBook = await dispatcher.Send(new CreateBookCommand(author.Id, "Children of Dune", 1976, null));
         var allBooks = await dispatcher.Send(new ListBooksQuery(10_000));
@@ -72,7 +72,7 @@ public sealed class DispatcherFlowTests
         var dispatcher = provider.GetRequiredService<IRequestDispatcher>();
 
         var exception = await Assert.ThrowsAsync<RequestValidationException>(
-            () => dispatcher.Send(new CreateAuthorCommand(" ")));
+            () => dispatcher.Send(new CreateAuthorCommand(" ", null)));
 
         Assert.Contains(exception.Errors, error => error.PropertyName == "Name");
 
@@ -167,6 +167,7 @@ public sealed class DispatcherFlowTests
                 .Select(author => new AuthorSummaryResponse(
                     author.Id,
                     author.Name,
+                    author.Bio,
                     author.CreatedAtUtc,
                     author.UpdatedAtUtc,
                     author.Books.Count))
@@ -212,6 +213,7 @@ public sealed class DispatcherFlowTests
             new(
                 author.Id,
                 author.Name,
+                author.Bio,
                 author.CreatedAtUtc,
                 author.UpdatedAtUtc,
                 author.Books

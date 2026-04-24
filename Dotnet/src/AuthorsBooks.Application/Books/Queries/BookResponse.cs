@@ -7,8 +7,8 @@ public sealed record BookResponse(
     Guid AuthorId,
     string AuthorName,
     string Title,
-    int PublicationYear,
-    string? Isbn,
+    int? PublicationYear,
+    string Isbn,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 

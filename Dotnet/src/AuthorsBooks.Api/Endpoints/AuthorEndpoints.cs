@@ -43,7 +43,7 @@ public static class AuthorEndpoints
         [FromServices] IRequestDispatcher dispatcher,
         CancellationToken cancellationToken)
     {
-        var response = await dispatcher.Send(new CreateAuthorCommand(request.Name), cancellationToken);
+        var response = await dispatcher.Send(new CreateAuthorCommand(request.Name, request.Bio), cancellationToken);
         return Results.Created($"/authors/{response.Id}", response);
     }
 
@@ -53,7 +53,7 @@ public static class AuthorEndpoints
         [FromServices] IRequestDispatcher dispatcher,
         CancellationToken cancellationToken)
     {
-        var response = await dispatcher.Send(new UpdateAuthorCommand(authorId, request.Name), cancellationToken);
+        var response = await dispatcher.Send(new UpdateAuthorCommand(authorId, request.Name, request.Bio), cancellationToken);
         return Results.Ok(response);
     }
 

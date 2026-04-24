@@ -80,17 +80,22 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EnvFile = Join-Path $RepoRoot ".env"
 $ComposeFile = Join-Path $RepoRoot "compose.vm.yaml"
 $CollectorConfigFile = Join-Path $RepoRoot "otel-collector-config.yaml"
-$NginxConfigFile = Join-Path $RepoRoot "nginx.vm.conf"
+$NginxConfigFile = (Resolve-Path (Join-Path $RepoRoot "..\Infra\nginx.vm.conf")).Path
 $Target = "$VmUser@$VmIp"
+$CleanupRemoteDirs = @($RemoteDir, "/opt/authors-books-service") | Select-Object -Unique
 
 Assert-Path $EnvFile
 Assert-Path $ComposeFile
 Assert-Path $CollectorConfigFile
 Assert-Path $NginxConfigFile
 
-Write-Host "Destroying any existing Compose stack in $RemoteDir..."
-Invoke-RemoteOptional "if [ -d '$RemoteDir' ] && [ -f '$RemoteDir/compose.yaml' ]; then cd '$RemoteDir' && docker compose down --remove-orphans --volumes; else true; fi" | Out-Null
-Invoke-RemoteOptional "project=`$(basename '$RemoteDir'); docker ps -aq --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker rm -f; docker network ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker network rm; docker volume ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker volume rm -f" | Out-Null
+Write-Host "Destroying any existing Compose stack on the VM..."
+foreach ($CleanupRemoteDir in $CleanupRemoteDirs) {
+    Invoke-RemoteOptional "if [ -d '$CleanupRemoteDir' ] && [ -f '$CleanupRemoteDir/compose.yaml' ]; then cd '$CleanupRemoteDir' && docker compose down --remove-orphans --volumes; else true; fi" | Out-Null
+    Invoke-RemoteOptional "project=`$(basename '$CleanupRemoteDir'); docker ps -aq --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker rm -f; docker network ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker network rm; docker volume ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker volume rm -f" | Out-Null
+    Invoke-Remote "case '$CleanupRemoteDir' in /opt/*) sudo rm -rf '$CleanupRemoteDir' ;; *) echo 'Refusing to remove unexpected remote directory: $CleanupRemoteDir' >&2; exit 1 ;; esac"
+}
+Invoke-RemoteOptional "sudo rm -f /etc/letsencrypt/renewal-hooks/deploy/books-service-nginx.sh" | Out-Null
 
 Invoke-Remote "sudo mkdir -p '$RemoteDir' && sudo chown -R `$(id -u):`$(id -g) '$RemoteDir'"
 

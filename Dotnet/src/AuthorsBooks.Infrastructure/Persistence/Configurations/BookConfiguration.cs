@@ -13,20 +13,39 @@ internal sealed class BookConfiguration : IEntityTypeConfiguration<Book>
         builder.HasKey(book => book.Id);
 
         builder.Property(book => book.Id)
+            .HasColumnName("id")
             .ValueGeneratedNever();
 
-        builder.Property(book => book.Title)
-            .HasMaxLength(200)
+        builder.Property(book => book.AuthorId)
+            .HasColumnName("author_id")
             .IsRequired();
 
-        builder.Property(book => book.PublicationYear).IsRequired();
+        builder.Property(book => book.Title)
+            .HasColumnName("title")
+            .HasColumnType("text")
+            .IsRequired();
+
+        builder.Property(book => book.PublicationYear)
+            .HasColumnName("published_year");
 
         builder.Property(book => book.Isbn)
-            .HasMaxLength(50);
+            .HasColumnName("isbn")
+            .HasColumnType("text")
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
 
-        builder.Property(book => book.CreatedAtUtc).IsRequired();
-        builder.Property(book => book.UpdatedAtUtc).IsRequired();
+        builder.Property(book => book.CreatedAtUtc)
+            .HasColumnName("created_at")
+            .IsRequired();
 
-        builder.HasIndex(book => book.AuthorId);
+        builder.Property(book => book.UpdatedAtUtc)
+            .HasColumnName("updated_at")
+            .IsRequired();
+
+        builder.HasIndex(book => book.AuthorId)
+            .HasDatabaseName("idx_books_author_id");
+
+        builder.HasIndex(book => book.Isbn)
+            .HasDatabaseName("idx_books_isbn");
     }
 }

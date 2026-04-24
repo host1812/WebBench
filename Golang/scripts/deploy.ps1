@@ -80,17 +80,21 @@ $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EnvFile = Join-Path $RepoRoot ".env"
 $ComposeFile = Join-Path $RepoRoot "compose.vm.yaml"
 $CollectorConfigFile = Join-Path $RepoRoot "otel-collector-config.yaml"
-$NginxConfigFile = Join-Path $RepoRoot "nginx.vm.conf"
+$NginxConfigFile = (Resolve-Path (Join-Path $RepoRoot "..\Infra\nginx.vm.conf")).Path
 $Target = "$VmUser@$VmIp"
+$CleanupRemoteDirs = @($RemoteDir, "/opt/authors-books-service") | Select-Object -Unique
 
 Assert-Path $EnvFile
 Assert-Path $ComposeFile
 Assert-Path $CollectorConfigFile
 Assert-Path $NginxConfigFile
 
-Invoke-Remote "if [ -f '$RemoteDir/compose.yaml' ]; then cd '$RemoteDir' && docker compose down --remove-orphans --volumes || true; fi"
-Invoke-Remote "case '$RemoteDir' in /opt/books-service) sudo rm -rf '$RemoteDir' ;; *) echo 'Refusing to remove unexpected remote directory: $RemoteDir' >&2; exit 1 ;; esac"
-Invoke-Remote "sudo rm -f /etc/letsencrypt/renewal-hooks/deploy/books-service-nginx.sh"
+foreach ($CleanupRemoteDir in $CleanupRemoteDirs) {
+    Invoke-RemoteOptional "if [ -d '$CleanupRemoteDir' ] && [ -f '$CleanupRemoteDir/compose.yaml' ]; then cd '$CleanupRemoteDir' && docker compose down --remove-orphans --volumes; else true; fi" | Out-Null
+    Invoke-RemoteOptional "project=`$(basename '$CleanupRemoteDir'); docker ps -aq --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker rm -f; docker network ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker network rm; docker volume ls -q --filter `"label=com.docker.compose.project=`$project`" | xargs -r docker volume rm -f" | Out-Null
+    Invoke-Remote "case '$CleanupRemoteDir' in /opt/*) sudo rm -rf '$CleanupRemoteDir' ;; *) echo 'Refusing to remove unexpected remote directory: $CleanupRemoteDir' >&2; exit 1 ;; esac"
+}
+Invoke-RemoteOptional "sudo rm -f /etc/letsencrypt/renewal-hooks/deploy/books-service-nginx.sh" | Out-Null
 Invoke-Remote "sudo mkdir -p '$RemoteDir' && sudo chown -R `$(id -u):`$(id -g) '$RemoteDir'"
 
 Copy-ToRemote $EnvFile "$RemoteDir/.env"
@@ -98,6 +102,7 @@ Copy-ToRemote $ComposeFile "$RemoteDir/compose.yaml"
 Copy-ToRemote $CollectorConfigFile "$RemoteDir/otel-collector-config.yaml"
 Copy-ToRemote $NginxConfigFile "$RemoteDir/nginx.vm.conf"
 
+Invoke-Remote "chmod 600 '$RemoteDir/.env'"
 Invoke-Remote "mkdir -p '$RemoteDir/certs' '$RemoteDir/certbot-webroot'"
 Invoke-Remote "if ! command -v openssl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y openssl; fi"
 Invoke-Remote "if [ ! -f '$RemoteDir/certs/server.crt' ] || [ ! -f '$RemoteDir/certs/server.key' ]; then openssl req -x509 -nodes -newkey rsa:4096 -sha256 -days 365 -keyout '$RemoteDir/certs/server.key' -out '$RemoteDir/certs/server.crt' -subj '/CN=$VmIp' -addext 'subjectAltName=IP:$VmIp,DNS:localhost'; fi"

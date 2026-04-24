@@ -5,7 +5,7 @@ using AuthorsBooks.Domain.Authors;
 
 namespace AuthorsBooks.Application.Authors.Commands;
 
-public sealed record CreateAuthorCommand(string Name) : ICommand<AuthorDetailsResponse>;
+public sealed record CreateAuthorCommand(string Name, string? Bio) : ICommand<AuthorDetailsResponse>;
 
 internal sealed class CreateAuthorCommandHandler(
     IAuthorRepository authorRepository,
@@ -15,7 +15,7 @@ internal sealed class CreateAuthorCommandHandler(
 {
     public async Task<AuthorDetailsResponse> Handle(CreateAuthorCommand request, CancellationToken cancellationToken)
     {
-        var author = Author.Create(request.Name, timeProvider.GetUtcNow());
+        var author = Author.Create(request.Name, request.Bio, timeProvider.GetUtcNow());
         await authorRepository.AddAsync(author, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return author.ToDetailsResponse();
@@ -35,6 +35,11 @@ internal sealed class CreateAuthorCommandValidator : IValidator<CreateAuthorComm
         else if (request.Name.Trim().Length > 200)
         {
             failures.Add(new ValidationFailure(nameof(request.Name), "Author name must be 200 characters or fewer."));
+        }
+
+        if (request.Bio is { Length: > 4000 })
+        {
+            failures.Add(new ValidationFailure(nameof(request.Bio), "Author bio must be 4000 characters or fewer."));
         }
 
         return failures;

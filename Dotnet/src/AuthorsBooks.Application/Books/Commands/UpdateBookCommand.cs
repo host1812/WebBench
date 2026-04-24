@@ -6,7 +6,7 @@ using AuthorsBooks.Domain.Common;
 
 namespace AuthorsBooks.Application.Books.Commands;
 
-public sealed record UpdateBookCommand(Guid AuthorId, Guid BookId, string Title, int PublicationYear, string? Isbn)
+public sealed record UpdateBookCommand(Guid AuthorId, Guid BookId, string Title, int? PublicationYear, string? Isbn)
     : ICommand<BookResponse>;
 
 internal sealed class UpdateBookCommandHandler(
@@ -59,7 +59,7 @@ internal sealed class UpdateBookCommandValidator : IValidator<UpdateBookCommand>
             failures.Add(new ValidationFailure(nameof(request.Title), "Book title must be 200 characters or fewer."));
         }
 
-        if (request.PublicationYear is < 1 or > 9999)
+        if (request.PublicationYear.HasValue && request.PublicationYear is < 1 or > 9999)
         {
             failures.Add(new ValidationFailure(nameof(request.PublicationYear), "Publication year must be between 1 and 9999."));
         }
