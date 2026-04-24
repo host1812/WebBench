@@ -1,5 +1,16 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$VmIp,
+
+    [string]$VmUser = "azureuser",
+
+    [string]$RemoteDir = "/opt/books-service",
+
+    [string]$HttpsPort = "443",
+
+    [string]$AcrName
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -77,11 +88,30 @@ Assert-Command "scp"
 Assert-Path $composeFile
 Assert-Path $nginxConfigFile
 
-$vmIp = Get-RequiredSetting "VM_IP"
-$vmUser = Get-OptionalSetting "VM_USER" "azureuser"
-$remoteDir = Get-OptionalSetting "REMOTE_DIR" "/opt/books-service"
-$acrName = Get-RequiredSetting "ACR_NAME"
-$httpsPort = "443"
+$vmUser = if ($PSBoundParameters.ContainsKey("VmUser")) {
+    $VmUser
+}
+else {
+    Get-OptionalSetting "VM_USER" "azureuser"
+}
+$remoteDir = if ($PSBoundParameters.ContainsKey("RemoteDir")) {
+    $RemoteDir
+}
+else {
+    Get-OptionalSetting "REMOTE_DIR" "/opt/books-service"
+}
+$acrName = if ($PSBoundParameters.ContainsKey("AcrName") -and -not [string]::IsNullOrWhiteSpace($AcrName)) {
+    $AcrName
+}
+else {
+    Get-RequiredSetting "ACR_NAME"
+}
+$httpsPort = if ($PSBoundParameters.ContainsKey("HttpsPort")) {
+    $HttpsPort
+}
+else {
+    "443"
+}
 $target = "$vmUser@$vmIp"
 $cleanupRemoteDirs = @($remoteDir, "/opt/authors-books-service") | Select-Object -Unique
 

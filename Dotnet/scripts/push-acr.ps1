@@ -1,39 +1,44 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$RegistryName = "acrwebbench4sayzpoemqsyo.azurecr.io",
+
+    [string]$ImageName = "books-service-dotnet",
+
+    [string]$Tag = "local",
+
+    [string[]]$AdditionalRemoteTags = @("latest"),
+
+    [string]$LocalImage = "books-service-dotnet:local"
+)
 
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot "Common.ps1")
+function Assert-Command {
+    param([string]$Name)
 
-$repoRoot = Get-RepoRoot
-$envFile = Join-Path $repoRoot ".env"
-
-Import-DotEnv -Path $envFile
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Required command '$Name' was not found on PATH."
+    }
+}
 
 Assert-Command "az"
 Assert-Command "docker"
 
-$acrName = Get-RequiredSetting "ACR_NAME"
-$acrLoginServer = Get-OptionalSetting "ACR_LOGIN_SERVER" "$acrName.azurecr.io"
-$imageName = Get-OptionalSetting "IMAGE_NAME" "authors-books-api"
-$imageTag = Get-OptionalSetting "IMAGE_TAG" "latest"
-$dockerfilePath = Get-OptionalSetting "DOCKERFILE_PATH" "Dockerfile"
-$buildContext = Get-OptionalSetting "BUILD_CONTEXT" "."
-$localImage = "authors-books-api:local"
-$remoteImage = "${acrLoginServer}/${imageName}:${imageTag}"
+docker build -t $LocalImage .
 
-Push-Location $repoRoot
+# Get current date in YYYYMMDDHHSS format
+$CurrentDateTime = (Get-Date -Format 'yyyyMMddHHmmss')
 
-try {
-    docker build -f $dockerfilePath -t $localImage $buildContext
+$remoteTags = @($CurrentDateTime) + $AdditionalRemoteTags |
+Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+Select-Object -Unique
 
-    az acr login --name $acrName
+az acr login --name $RegistryName
 
-    docker tag $localImage $remoteImage
+foreach ($remoteTag in $remoteTags) {
+    $remoteImage = "$RegistryName/${ImageName}:$remoteTag"
+    docker tag $LocalImage $remoteImage
     docker push $remoteImage
 
     Write-Host "Pushed $remoteImage"
-}
-finally {
-    Pop-Location
 }
