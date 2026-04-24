@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# Test output
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Visual Studio / Rider user files
+.vs/
+*.user
+*.rsuser
+*.suo
+*.sln.docstates
+
+# Local .NET SDK and NuGet caches
+.dotnet/
+.nuget/
+.templateengine/
+
+# Local logs
+*.log
