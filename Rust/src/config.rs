@@ -61,7 +61,6 @@ pub struct ObservabilityConfig {
     #[serde(default = "default_environment")]
     pub environment: String,
     pub otlp_endpoint: Option<String>,
-    pub application_insights_connection_string: Option<String>,
 }
 
 impl Default for ObservabilityConfig {
@@ -72,7 +71,6 @@ impl Default for ObservabilityConfig {
             service_name: default_service_name(),
             environment: default_environment(),
             otlp_endpoint: None,
-            application_insights_connection_string: None,
         }
     }
 }
@@ -116,14 +114,6 @@ fn apply_booksvc_environment(config: &mut AppConfig) -> Result<(), AppError> {
         config.observability.otlp_endpoint = Some(value);
     }
 
-    if let Ok(value) = std::env::var("BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING") {
-        config.observability.application_insights_connection_string = Some(value);
-    }
-
-    if let Ok(value) = std::env::var("APPLICATIONINSIGHTS_CONNECTION_STRING") {
-        config.observability.application_insights_connection_string = Some(value);
-    }
-
     Ok(())
 }
 
@@ -132,6 +122,20 @@ fn validate_config(config: &AppConfig) -> Result<(), AppError> {
         return Err(AppError::Validation(
             "BOOKSVC_DATABASE_CONNECTION_STRING or LOCAL_DATABASE_CONNECTION_STRING is required"
                 .to_owned(),
+        ));
+    }
+
+    if config.observability.telemetry_enabled == Some(true)
+        && config
+            .observability
+            .otlp_endpoint
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err(AppError::Validation(
+            "BOOKSVC_TELEMETRY_OTLP_ENDPOINT is required when telemetry is enabled".to_owned(),
         ));
     }
 
@@ -189,7 +193,7 @@ fn default_max_connections() -> u32 {
 }
 
 fn default_log_filter() -> String {
-    "info,rust_backend_service=debug,tower_http=info".to_owned()
+    "info".to_owned()
 }
 
 fn default_service_name() -> String {

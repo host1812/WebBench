@@ -15,7 +15,6 @@ impl PostgresHealthCheck {
 
 #[async_trait]
 impl DependencyHealthCheck for PostgresHealthCheck {
-    #[tracing::instrument(name = "health.database", skip(self))]
     async fn check(&self) -> DependencyHealthDto {
         match sqlx::query_scalar::<_, i32>("SELECT 1")
             .fetch_one(&self.pool)

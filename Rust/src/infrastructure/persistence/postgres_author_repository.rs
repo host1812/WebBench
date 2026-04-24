@@ -21,7 +21,6 @@ impl PostgresAuthorRepository {
 
 #[async_trait]
 impl AuthorCommandRepository for PostgresAuthorRepository {
-    #[tracing::instrument(name = "postgres.authors.create", skip(self, author), fields(author.id = %author.id), err)]
     async fn create(&self, author: Author) -> Result<Author, AppError> {
         let row = sqlx::query_as::<_, AuthorRow>(
             r#"
@@ -41,7 +40,6 @@ impl AuthorCommandRepository for PostgresAuthorRepository {
         Ok(row.into())
     }
 
-    #[tracing::instrument(name = "postgres.authors.update", skip(self, author), fields(author.id = %author.id), err)]
     async fn update(&self, author: Author) -> Result<Author, AppError> {
         let row = sqlx::query_as::<_, AuthorRow>(
             r#"
@@ -64,7 +62,6 @@ impl AuthorCommandRepository for PostgresAuthorRepository {
         }
     }
 
-    #[tracing::instrument(name = "postgres.authors.delete", skip(self), fields(author.id = %author_id), err)]
     async fn delete(&self, author_id: AuthorId) -> Result<(), AppError> {
         let result = sqlx::query(
             r#"
@@ -86,7 +83,6 @@ impl AuthorCommandRepository for PostgresAuthorRepository {
 
 #[async_trait]
 impl AuthorQueryRepository for PostgresAuthorRepository {
-    #[tracing::instrument(name = "postgres.authors.list", skip(self), err)]
     async fn list(&self) -> Result<Vec<Author>, AppError> {
         let rows = sqlx::query_as::<_, AuthorRow>(
             r#"
@@ -101,7 +97,6 @@ impl AuthorQueryRepository for PostgresAuthorRepository {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "postgres.authors.get", skip(self), fields(author.id = %author_id), err)]
     async fn get(&self, author_id: AuthorId) -> Result<Option<Author>, AppError> {
         let row = sqlx::query_as::<_, AuthorRow>(
             r#"

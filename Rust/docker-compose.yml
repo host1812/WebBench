@@ -1,4 +1,13 @@
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    profiles: ["telemetry"]
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: "${APPLICATIONINSIGHTS_CONNECTION_STRING:?APPLICATIONINSIGHTS_CONNECTION_STRING is required}"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
   api:
     build:
       context: .
@@ -12,8 +21,6 @@ services:
       BOOKSVC_TELEMETRY_SERVICE_NAME: ${BOOKSVC_TELEMETRY_SERVICE_NAME:-books-service}
       BOOKSVC_TELEMETRY_ENVIRONMENT: ${BOOKSVC_TELEMETRY_ENVIRONMENT:-local}
       BOOKSVC_TELEMETRY_OTLP_ENDPOINT: ${BOOKSVC_TELEMETRY_OTLP_ENDPOINT:-otel-collector:4318}
-      BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
     ports:
       - "8080:8080"
     depends_on:

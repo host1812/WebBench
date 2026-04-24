@@ -79,11 +79,13 @@ Assert-Command "scp"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EnvFile = Join-Path $RepoRoot ".env"
 $ComposeFile = Join-Path $RepoRoot "compose.vm.yaml"
+$CollectorConfigFile = Join-Path $RepoRoot "otel-collector-config.yaml"
 $NginxConfigFile = Join-Path $RepoRoot "nginx.vm.conf"
 $Target = "$VmUser@$VmIp"
 
 Assert-Path $EnvFile
 Assert-Path $ComposeFile
+Assert-Path $CollectorConfigFile
 Assert-Path $NginxConfigFile
 
 Write-Host "Destroying any existing Compose stack in $RemoteDir..."
@@ -94,6 +96,7 @@ Invoke-Remote "sudo mkdir -p '$RemoteDir' && sudo chown -R `$(id -u):`$(id -g) '
 
 Copy-ToRemote $EnvFile "$RemoteDir/.env"
 Copy-ToRemote $ComposeFile "$RemoteDir/compose.yaml"
+Copy-ToRemote $CollectorConfigFile "$RemoteDir/otel-collector-config.yaml"
 Copy-ToRemote $NginxConfigFile "$RemoteDir/nginx.vm.conf"
 
 Invoke-Remote "chmod 600 '$RemoteDir/.env'"

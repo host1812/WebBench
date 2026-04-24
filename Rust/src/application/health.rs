@@ -75,7 +75,6 @@ impl HealthQueryHandler {
 
 #[async_trait]
 impl HealthQueryService for HealthQueryHandler {
-    #[tracing::instrument(name = "health.check", skip(self))]
     async fn check_health(&self) -> HealthReportDto {
         let database = self.database.check().await;
         let status = if database.status == HealthStatus::Healthy {

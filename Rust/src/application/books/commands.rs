@@ -47,7 +47,6 @@ impl BookCommandHandler {
 
 #[async_trait]
 impl BookCommandService for BookCommandHandler {
-    #[tracing::instrument(name = "books.command.create", skip(self, input), fields(author.id = %input.author_id, book.title = %input.title), err)]
     async fn create_book(&self, input: CreateBookInput) -> Result<BookDto, AppError> {
         let author_id = AuthorId::from(input.author_id);
         ensure_author_exists(self.authors.as_ref(), author_id).await?;
@@ -57,7 +56,6 @@ impl BookCommandService for BookCommandHandler {
         Ok(created.into())
     }
 
-    #[tracing::instrument(name = "books.command.update", skip(self, input), fields(book.id = %book_id, author.id = %input.author_id, book.title = %input.title), err)]
     async fn update_book(
         &self,
         book_id: BookId,
@@ -78,7 +76,6 @@ impl BookCommandService for BookCommandHandler {
         Ok(updated.into())
     }
 
-    #[tracing::instrument(name = "books.command.delete", skip(self), fields(book.id = %book_id), err)]
     async fn delete_book(&self, book_id: BookId) -> Result<(), AppError> {
         if self.queries.get(book_id).await?.is_none() {
             return Err(AppError::NotFound(format!("book {book_id}")));
@@ -88,7 +85,6 @@ impl BookCommandService for BookCommandHandler {
     }
 }
 
-#[tracing::instrument(name = "books.command.ensure_author_exists", skip(repository), fields(author.id = %author_id), err)]
 async fn ensure_author_exists(
     repository: &dyn AuthorQueryRepository,
     author_id: AuthorId,

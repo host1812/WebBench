@@ -28,16 +28,17 @@ $env:BOOKSVC_DATABASE_CONNECTION_STRING = "postgres://user:password@localhost:54
 $env:BOOKSVC_HTTP_ADDRESS = ":8081"
 ```
 
-Enable Azure Application Insights export:
+Enable telemetry export through the local OpenTelemetry Collector:
 
 ```powershell
 $env:BOOKSVC_TELEMETRY_ENABLED = "true"
 $env:BOOKSVC_TELEMETRY_SERVICE_NAME = "books-service"
 $env:BOOKSVC_TELEMETRY_ENVIRONMENT = "production"
+$env:BOOKSVC_TELEMETRY_OTLP_ENDPOINT = "http://localhost:4318"
 $env:APPLICATIONINSIGHTS_CONNECTION_STRING = "InstrumentationKey=...;IngestionEndpoint=..."
 ```
 
-The implementation uses OpenTelemetry with a community Application Insights exporter. Microsoft does not currently provide an official direct Azure Monitor exporter for Rust.
+The Rust service exports OTLP traces to a local OpenTelemetry Collector. The Collector is responsible for exporting those traces to Azure Application Insights.
 
 Supported preferred environment variables:
 
@@ -55,9 +56,7 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 
 If both database connection strings are present, `BOOKSVC_DATABASE_CONNECTION_STRING` wins. Local Docker Compose explicitly maps `LOCAL_DATABASE_CONNECTION_STRING` into the API container.
 
-Docker Compose also forwards `APPLICATIONINSIGHTS_CONNECTION_STRING` as `BOOKSVC_TELEMETRY_APPLICATION_INSIGHTS_CONNECTION_STRING` for images that expect the nested `BOOKSVC_TELEMETRY_*` name.
-
-When telemetry is enabled, startup logs should include `application insights telemetry enabled`. If telemetry is explicitly enabled without an Application Insights connection string, startup fails.
+When telemetry is enabled, startup logs should include `OpenTelemetry collector telemetry enabled`. If telemetry is explicitly enabled without an OTLP endpoint, startup fails.
 
 ## Endpoints
 
@@ -98,7 +97,7 @@ Book list endpoints accept an optional `limit` query parameter. Valid range is `
 }
 ```
 
-The endpoint returns `200 OK` when all checks are healthy and `503 Service Unavailable` when a dependency check fails.
+The endpoint returns `200 OK` when all checks are healthy and `503 Service Unavailable` when a dependency check fails. The database check times out after 2 seconds so health probes do not queue behind long-running requests indefinitely.
 
 ## Run
 
@@ -121,6 +120,12 @@ The API will be available at:
 
 ```text
 http://localhost:8080
+```
+
+To run local telemetry end to end, start the Collector profile too:
+
+```powershell
+docker compose --profile telemetry up --build
 ```
 
 Stop the stack:

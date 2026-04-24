@@ -38,13 +38,11 @@ impl AuthorQueryHandler {
 
 #[async_trait]
 impl AuthorQueryService for AuthorQueryHandler {
-    #[tracing::instrument(name = "authors.query.list", skip(self), err)]
     async fn list_authors(&self) -> Result<Vec<AuthorDto>, AppError> {
         let authors = self.authors.list().await?;
         Ok(authors.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "authors.query.get", skip(self), fields(author.id = %author_id), err)]
     async fn get_author(&self, author_id: AuthorId) -> Result<AuthorDetailsDto, AppError> {
         let author = self
             .authors
@@ -63,7 +61,6 @@ impl AuthorQueryService for AuthorQueryHandler {
         })
     }
 
-    #[tracing::instrument(name = "authors.query.list_books", skip(self), fields(author.id = %author_id, limit = limit.value()), err)]
     async fn list_books_for_author(
         &self,
         author_id: AuthorId,

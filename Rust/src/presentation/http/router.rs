@@ -6,13 +6,15 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use tower_http::trace::TraceLayer;
+use time::OffsetDateTime;
+use tokio::time::{Duration, timeout};
 use uuid::Uuid;
 
 use crate::{
     application::{
         authors::{CreateAuthorInput, UpdateAuthorInput},
         books::{CreateBookInput, UpdateBookInput},
+        health::{DependencyHealthDto, HealthChecksDto, HealthReportDto, HealthStatus},
     },
     domain::{
         author::AuthorId,
@@ -27,7 +29,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health", get(health))
         .nest("/api/v1", resource_routes())
         .merge(resource_routes())
-        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
@@ -46,9 +47,11 @@ fn resource_routes() -> Router<AppState> {
         )
 }
 
-#[tracing::instrument(name = "http.health", skip(state))]
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
-    let report = state.health_queries.check_health().await;
+    let report = match timeout(health_timeout(), state.health_queries.check_health()).await {
+        Ok(report) => report,
+        Err(_) => timed_out_health_report(),
+    };
     let status = if report.is_healthy() {
         StatusCode::OK
     } else {
@@ -58,7 +61,6 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
     (status, Json(report))
 }
 
-#[tracing::instrument(name = "http.authors.create", skip(state, input), err)]
 async fn create_author(
     State(state): State<AppState>,
     Json(input): Json<CreateAuthorInput>,
@@ -67,13 +69,11 @@ async fn create_author(
     Ok((StatusCode::CREATED, Json(author)))
 }
 
-#[tracing::instrument(name = "http.authors.list", skip(state), err)]
 async fn list_authors(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let authors = state.author_queries.list_authors().await?;
     Ok(Json(authors))
 }
 
-#[tracing::instrument(name = "http.authors.get", skip(state), fields(author.id = %author_id), err)]
 async fn get_author(
     State(state): State<AppState>,
     Path(author_id): Path<Uuid>,
@@ -82,7 +82,6 @@ async fn get_author(
     Ok(Json(author))
 }
 
-#[tracing::instrument(name = "http.authors.update", skip(state, input), fields(author.id = %author_id), err)]
 async fn update_author(
     State(state): State<AppState>,
     Path(author_id): Path<Uuid>,
@@ -95,7 +94,6 @@ async fn update_author(
     Ok(Json(author))
 }
 
-#[tracing::instrument(name = "http.authors.delete", skip(state), fields(author.id = %author_id), err)]
 async fn delete_author(
     State(state): State<AppState>,
     Path(author_id): Path<Uuid>,
@@ -107,7 +105,6 @@ async fn delete_author(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[tracing::instrument(name = "http.authors.books.list", skip(state), fields(author.id = %author_id), err)]
 async fn list_author_books(
     State(state): State<AppState>,
     Path(author_id): Path<Uuid>,
@@ -121,7 +118,6 @@ async fn list_author_books(
     Ok(Json(books))
 }
 
-#[tracing::instrument(name = "http.books.create", skip(state, input), err)]
 async fn create_book(
     State(state): State<AppState>,
     Json(input): Json<CreateBookInput>,
@@ -130,7 +126,6 @@ async fn create_book(
     Ok((StatusCode::CREATED, Json(book)))
 }
 
-#[tracing::instrument(name = "http.books.list", skip(state), err)]
 async fn list_books(
     State(state): State<AppState>,
     Query(params): Query<BookListParams>,
@@ -139,7 +134,6 @@ async fn list_books(
     Ok(Json(books))
 }
 
-#[tracing::instrument(name = "http.books.get", skip(state), fields(book.id = %book_id), err)]
 async fn get_book(
     State(state): State<AppState>,
     Path(book_id): Path<Uuid>,
@@ -148,7 +142,6 @@ async fn get_book(
     Ok(Json(book))
 }
 
-#[tracing::instrument(name = "http.books.update", skip(state, input), fields(book.id = %book_id), err)]
 async fn update_book(
     State(state): State<AppState>,
     Path(book_id): Path<Uuid>,
@@ -161,13 +154,27 @@ async fn update_book(
     Ok(Json(book))
 }
 
-#[tracing::instrument(name = "http.books.delete", skip(state), fields(book.id = %book_id), err)]
 async fn delete_book(
     State(state): State<AppState>,
     Path(book_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     state.book_commands.delete_book(book_id.into()).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+fn health_timeout() -> Duration {
+    Duration::from_secs(2)
+}
+
+fn timed_out_health_report() -> HealthReportDto {
+    HealthReportDto {
+        service: "rust_backend_service".to_owned(),
+        status: HealthStatus::Unhealthy,
+        checks: HealthChecksDto {
+            database: DependencyHealthDto::unhealthy("database health check timed out"),
+        },
+        timestamp: OffsetDateTime::now_utc(),
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -200,6 +207,7 @@ mod tests {
     };
     use serde_json::{Value, json};
     use time::OffsetDateTime;
+    use tokio::time::{Duration, sleep};
     use tower::ServiceExt;
     use uuid::Uuid;
 
@@ -260,6 +268,28 @@ mod tests {
         let body = response_json(response).await;
         assert_eq!(body["status"], json!("unhealthy"));
         assert_eq!(body["checks"]["database"]["status"], json!("unhealthy"));
+    }
+
+    #[tokio::test]
+    async fn health_route_times_out_after_two_seconds() {
+        let app = test_app_with_slow_health(
+            Calls::default(),
+            super::health_timeout() + Duration::from_millis(50),
+        );
+
+        let response = app
+            .oneshot(empty_request(Method::GET, "/health"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        let body = response_json(response).await;
+        assert_eq!(body["status"], json!("unhealthy"));
+        assert_eq!(
+            body["checks"]["database"]["message"],
+            json!("database health check timed out")
+        );
     }
 
     #[tokio::test]
@@ -548,7 +578,26 @@ mod tests {
     }
 
     fn test_app_with_health(calls: Calls, database_health: DependencyHealthDto) -> Router {
-        let health_queries = Arc::new(MockHealthQueryService { database_health });
+        test_app_with_health_service(
+            calls,
+            Arc::new(MockHealthQueryService::new(database_health)),
+        )
+    }
+
+    fn test_app_with_slow_health(calls: Calls, delay: Duration) -> Router {
+        test_app_with_health_service(
+            calls,
+            Arc::new(MockHealthQueryService::with_delay(
+                DependencyHealthDto::healthy(),
+                delay,
+            )),
+        )
+    }
+
+    fn test_app_with_health_service(
+        calls: Calls,
+        health_queries: Arc<dyn HealthQueryService>,
+    ) -> Router {
         let author_commands = Arc::new(MockAuthorCommandService {
             calls: calls.clone(),
         });
@@ -608,11 +657,32 @@ mod tests {
 
     struct MockHealthQueryService {
         database_health: DependencyHealthDto,
+        delay: Duration,
+    }
+
+    impl MockHealthQueryService {
+        fn new(database_health: DependencyHealthDto) -> Self {
+            Self {
+                database_health,
+                delay: Duration::ZERO,
+            }
+        }
+
+        fn with_delay(database_health: DependencyHealthDto, delay: Duration) -> Self {
+            Self {
+                database_health,
+                delay,
+            }
+        }
     }
 
     #[async_trait]
     impl HealthQueryService for MockHealthQueryService {
         async fn check_health(&self) -> HealthReportDto {
+            if !self.delay.is_zero() {
+                sleep(self.delay).await;
+            }
+
             let status = if self.database_health.status == HealthStatus::Healthy {
                 HealthStatus::Healthy
             } else {

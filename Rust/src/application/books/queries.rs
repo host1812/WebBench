@@ -33,13 +33,11 @@ impl BookQueryHandler {
 
 #[async_trait]
 impl BookQueryService for BookQueryHandler {
-    #[tracing::instrument(name = "books.query.list", skip(self), fields(limit = limit.value()), err)]
     async fn list_books(&self, limit: BookListLimit) -> Result<Vec<BookDto>, AppError> {
         let books = self.books.list(limit).await?;
         Ok(books.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "books.query.get", skip(self), fields(book.id = %book_id), err)]
     async fn get_book(&self, book_id: BookId) -> Result<BookDto, AppError> {
         let book = self
             .books

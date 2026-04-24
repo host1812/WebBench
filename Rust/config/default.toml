@@ -6,6 +6,6 @@ port = 8080
 max_connections = 10
 
 [observability]
-log_filter = "info,rust_backend_service=debug,tower_http=info"
+log_filter = "info"
 service_name = "rust_backend_service"
 environment = "local"

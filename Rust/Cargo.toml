@@ -9,17 +9,14 @@ axum = "0.8.9"
 config = { version = "0.15.18", default-features = false, features = ["toml"] }
 http = "1.3.1"
 opentelemetry = { version = "0.31.0", features = ["trace"] }
-opentelemetry-application-insights = { version = "0.44.0", default-features = false, features = ["trace", "reqwest-blocking-client-rustls"] }
-opentelemetry-http = { version = "0.31.0", default-features = false, features = ["reqwest-blocking"] }
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["trace", "http-proto", "reqwest-client", "reqwest-rustls"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls", "time", "uuid"] }
 thiserror = "2.0.17"
 time = { version = "0.3.44", features = ["formatting", "parsing", "serde"] }
 tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread", "signal"] }
-tower-http = { version = "0.6.6", features = ["trace"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }

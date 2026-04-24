@@ -24,7 +24,6 @@ impl PostgresBookRepository {
 
 #[async_trait]
 impl BookCommandRepository for PostgresBookRepository {
-    #[tracing::instrument(name = "postgres.books.create", skip(self, book), fields(book.id = %book.id, author.id = %book.author_id), err)]
     async fn create(&self, book: Book) -> Result<Book, AppError> {
         let row = sqlx::query_as::<_, BookRow>(
             r#"
@@ -47,7 +46,6 @@ impl BookCommandRepository for PostgresBookRepository {
         Ok(row.into())
     }
 
-    #[tracing::instrument(name = "postgres.books.update", skip(self, book), fields(book.id = %book.id, author.id = %book.author_id), err)]
     async fn update(&self, book: Book) -> Result<Book, AppError> {
         let row = sqlx::query_as::<_, BookRow>(
             r#"
@@ -73,7 +71,6 @@ impl BookCommandRepository for PostgresBookRepository {
         }
     }
 
-    #[tracing::instrument(name = "postgres.books.delete", skip(self), fields(book.id = %book_id), err)]
     async fn delete(&self, book_id: BookId) -> Result<(), AppError> {
         let result = sqlx::query(
             r#"
@@ -95,7 +92,6 @@ impl BookCommandRepository for PostgresBookRepository {
 
 #[async_trait]
 impl BookQueryRepository for PostgresBookRepository {
-    #[tracing::instrument(name = "postgres.books.list", skip(self), fields(limit = limit.value()), err)]
     async fn list(&self, limit: BookListLimit) -> Result<Vec<Book>, AppError> {
         let rows = sqlx::query_as::<_, BookRow>(
             r#"
@@ -112,7 +108,6 @@ impl BookQueryRepository for PostgresBookRepository {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "postgres.books.list_by_author", skip(self), fields(author.id = %author_id, limit = limit.value()), err)]
     async fn list_by_author(
         &self,
         author_id: AuthorId,
@@ -135,7 +130,6 @@ impl BookQueryRepository for PostgresBookRepository {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    #[tracing::instrument(name = "postgres.books.get", skip(self), fields(book.id = %book_id), err)]
     async fn get(&self, book_id: BookId) -> Result<Option<Book>, AppError> {
         let row = sqlx::query_as::<_, BookRow>(
             r#"

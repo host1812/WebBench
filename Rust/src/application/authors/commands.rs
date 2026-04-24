@@ -35,14 +35,12 @@ impl AuthorCommandHandler {
 
 #[async_trait]
 impl AuthorCommandService for AuthorCommandHandler {
-    #[tracing::instrument(name = "authors.command.create", skip(self, input), fields(author.name = %input.name), err)]
     async fn create_author(&self, input: CreateAuthorInput) -> Result<AuthorDto, AppError> {
         let author = Author::create(input.name, input.bio)?;
         let created = self.commands.create(author).await?;
         Ok(created.into())
     }
 
-    #[tracing::instrument(name = "authors.command.update", skip(self, input), fields(author.id = %author_id, author.name = %input.name), err)]
     async fn update_author(
         &self,
         author_id: AuthorId,
@@ -61,7 +59,6 @@ impl AuthorCommandService for AuthorCommandHandler {
         Ok(updated.into())
     }
 
-    #[tracing::instrument(name = "authors.command.delete", skip(self), fields(author.id = %author_id), err)]
     async fn delete_author(&self, author_id: AuthorId) -> Result<(), AppError> {
         if self.queries.get(author_id).await?.is_none() {
             return Err(AppError::NotFound(format!("author {author_id}")));
