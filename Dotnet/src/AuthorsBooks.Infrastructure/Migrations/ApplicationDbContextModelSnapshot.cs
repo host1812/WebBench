@@ -19,6 +19,7 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+        modelBuilder.HasDefaultSchema("public");
 
         modelBuilder.Entity("AuthorsBooks.Domain.Authors.Author", b =>
             {
@@ -49,7 +50,7 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
 
                 b.HasKey("Id");
 
-                b.ToTable("authors", (string)null);
+                b.ToTable("authors", "public");
             });
 
         modelBuilder.Entity("AuthorsBooks.Domain.Books.Book", b =>
@@ -95,7 +96,7 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("Isbn")
                     .HasDatabaseName("idx_books_isbn");
 
-                b.ToTable("books", (string)null);
+                b.ToTable("books", "public");
             });
 
         modelBuilder.Entity("AuthorsBooks.Domain.Books.Book", b =>

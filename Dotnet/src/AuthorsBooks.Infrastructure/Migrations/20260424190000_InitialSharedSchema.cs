@@ -1,10 +1,14 @@
 using System;
+using AuthorsBooks.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace AuthorsBooks.Infrastructure.Migrations;
 
+[DbContext(typeof(ApplicationDbContext))]
+[Migration("20260424190000_InitialSharedSchema")]
 public partial class InitialSharedSchema : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
