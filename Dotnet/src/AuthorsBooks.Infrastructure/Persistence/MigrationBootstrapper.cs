@@ -7,6 +7,7 @@ public static class MigrationBootstrapper
 {
     private const string InitialMigrationId = "20260424190000_InitialSharedSchema";
     private const string ProductVersion = "10.0.4";
+    private const string SchemaName = "public";
 
     public static async Task BaselineExistingSharedSchemaAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken = default)
     {
@@ -38,7 +39,7 @@ public static class MigrationBootstrapper
         await using (var createHistory = connection.CreateCommand())
         {
             createHistory.CommandText = """
-                CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                CREATE TABLE IF NOT EXISTS public."__EFMigrationsHistory" (
                     "MigrationId" character varying(150) NOT NULL,
                     "ProductVersion" character varying(32) NOT NULL,
                     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
@@ -50,7 +51,7 @@ public static class MigrationBootstrapper
 
         await using var seedHistory = connection.CreateCommand();
         seedHistory.CommandText = """
-            INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            INSERT INTO public."__EFMigrationsHistory" ("MigrationId", "ProductVersion")
             VALUES (@migrationId, @productVersion)
             ON CONFLICT ("MigrationId") DO NOTHING;
             """;
@@ -68,11 +69,12 @@ public static class MigrationBootstrapper
             SELECT EXISTS (
                 SELECT 1
                 FROM information_schema.tables
-                WHERE table_schema = current_schema()
+                WHERE table_schema = @schemaName
                   AND table_name = @tableName
             );
             """;
 
+        AddParameter(command, "@schemaName", SchemaName);
         AddParameter(command, "@tableName", tableName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);

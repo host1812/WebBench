@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -20,6 +21,10 @@ public static class ServiceCollectionExtensions
     {
         var postgresConnectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("Connection string 'Postgres' was not found.");
+        var postgresConnectionStringBuilder = new NpgsqlConnectionStringBuilder(postgresConnectionString)
+        {
+            SearchPath = "public",
+        };
 
         var applicationInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights");
 
@@ -29,11 +34,12 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
         {
             options.UseNpgsql(
-                postgresConnectionString,
+                postgresConnectionStringBuilder.ConnectionString,
                 postgres =>
                 {
                     postgres.EnableRetryOnFailure();
                     postgres.CommandTimeout(600);
+                    postgres.MigrationsHistoryTable("__EFMigrationsHistory", "public");
                 });
 
             options.EnableDetailedErrors();
