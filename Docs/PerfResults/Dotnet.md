@@ -343,3 +343,175 @@ The implementation in this iteration should be followed by:
 
 - The `.env` files were verified to be absent from the current git index.
 - The `.env` files were also not found in `git log --all` history for the specific secret-bearing paths reviewed in this iteration.
+
+## 2026-04-25 16:00:36 -04:00
+
+### Summary
+
+A separate `Dotnet.Aot` project variant was created to explore NativeAOT readiness without disturbing the working `Dotnet` service. The goal in this iteration was not only to copy the project, but to remove the main code patterns that are hostile to NativeAOT and make the new variant structurally closer to a publishable AOT service.
+
+The copied project now builds and passes the existing unit and integration tests in this environment. A full `PublishAot=true` publish was not conclusively verified here because the sandboxed CLI publish path did not surface actionable compiler diagnostics during the AOT publish attempt.
+
+### Findings
+
+#### 1. A separate `Dotnet.Aot` project is safer than converting the existing `.NET` service in place
+
+The original `Dotnet` service was already functioning and had been improved for perf correctness. Enabling NativeAOT directly in that project would have mixed two concerns:
+
+- fixing the current benchmarked service
+- introducing a large deployment/runtime model change
+
+Creating a separate project copy allows:
+
+- side-by-side experimentation
+- independent Docker and deployment defaults
+- AOT-specific refactors without destabilizing the main `.NET` path
+
+Created project root:
+
+- [Dotnet.Aot](../../Dotnet.Aot)
+
+#### 2. The original `.NET` project had the expected NativeAOT blockers
+
+The key blockers identified before the refactor were:
+
+- assembly scanning for DI registration
+- runtime closed-generic construction in the request dispatcher
+- EF Core configuration discovery via assembly scanning
+- default reflection-based JSON metadata generation
+- anonymous response payloads in API endpoints
+
+Representative sources from the original project:
+
+- [Dotnet/src/AuthorsBooks.Application/DependencyInjection.cs](../../Dotnet/src/AuthorsBooks.Application/DependencyInjection.cs)
+- [Dotnet/src/AuthorsBooks.Application/Common/RequestDispatcher.cs](../../Dotnet/src/AuthorsBooks.Application/Common/RequestDispatcher.cs)
+- [Dotnet/src/AuthorsBooks.Infrastructure/Persistence/ApplicationDbContext.cs](../../Dotnet/src/AuthorsBooks.Infrastructure/Persistence/ApplicationDbContext.cs)
+
+#### 3. The new `Dotnet.Aot` project now uses explicit registrations instead of assembly scanning
+
+In the AOT variant, application registrations were rewritten to be explicit.
+
+Relevant source:
+
+- [Dotnet.Aot/src/AuthorsBooks.Application/DependencyInjection.cs](../../Dotnet.Aot/src/AuthorsBooks.Application/DependencyInjection.cs)
+
+What changed:
+
+- explicit `IRequestHandler<,>` registrations for all commands and queries
+- explicit `IValidator<>` registrations
+- explicit `RequestExecutor<,>` registrations
+- no `Assembly.GetExecutingAssembly()`
+- no `DefinedTypes` or `ImplementedInterfaces` scanning
+
+This removes a major runtime reflection dependency from the application layer.
+
+#### 4. The new dispatcher no longer relies on runtime generic construction or `dynamic`
+
+The AOT variant replaces runtime executor resolution with explicit request matching.
+
+Relevant source:
+
+- [Dotnet.Aot/src/AuthorsBooks.Application/Common/RequestDispatcher.cs](../../Dotnet.Aot/src/AuthorsBooks.Application/Common/RequestDispatcher.cs)
+
+What changed:
+
+- removed `MakeGenericType`
+- removed `dynamic`
+- replaced generic runtime type construction with an explicit `switch` over known request types
+
+This is less elegant than the previous generic dispatcher, but it is much more predictable for NativeAOT analysis.
+
+#### 5. EF Core model configuration is now explicit in the AOT variant
+
+The AOT copy no longer uses assembly scanning to discover entity configurations.
+
+Relevant source:
+
+- [Dotnet.Aot/src/AuthorsBooks.Infrastructure/Persistence/ApplicationDbContext.cs](../../Dotnet.Aot/src/AuthorsBooks.Infrastructure/Persistence/ApplicationDbContext.cs)
+
+What changed:
+
+- removed `ApplyConfigurationsFromAssembly(...)`
+- added explicit `ApplyConfiguration(new AuthorConfiguration())`
+- added explicit `ApplyConfiguration(new BookConfiguration())`
+
+#### 6. API JSON metadata is now source-generated in the AOT variant
+
+The AOT copy now defines a serializer context and wires it into minimal API JSON options.
+
+Relevant sources:
+
+- [Dotnet.Aot/src/AuthorsBooks.Api/Serialization/AuthorsBooksJsonSerializerContext.cs](../../Dotnet.Aot/src/AuthorsBooks.Api/Serialization/AuthorsBooksJsonSerializerContext.cs)
+- [Dotnet.Aot/src/AuthorsBooks.Api/Program.cs](../../Dotnet.Aot/src/AuthorsBooks.Api/Program.cs)
+- [Dotnet.Aot/src/AuthorsBooks.Api/Contracts/ServiceStatusResponse.cs](../../Dotnet.Aot/src/AuthorsBooks.Api/Contracts/ServiceStatusResponse.cs)
+
+What changed:
+
+- added source-generated `JsonSerializerContext`
+- registered it through `ConfigureHttpJsonOptions(...)`
+- replaced anonymous root and health responses with concrete record types
+- switched the API host setup to `WebApplication.CreateSlimBuilder(...)`
+
+These changes move the new project closer to the documented ASP.NET Core NativeAOT shape.
+
+#### 7. AOT-oriented build and deployment defaults were added to the copied project
+
+Relevant sources:
+
+- [Dotnet.Aot/src/AuthorsBooks.Api/AuthorsBooks.Api.csproj](../../Dotnet.Aot/src/AuthorsBooks.Api/AuthorsBooks.Api.csproj)
+- [Dotnet.Aot/Dockerfile](../../Dotnet.Aot/Dockerfile)
+- [Dotnet.Aot/.env.example](../../Dotnet.Aot/.env.example)
+- [Dotnet.Aot/scripts/push-acr.ps1](../../Dotnet.Aot/scripts/push-acr.ps1)
+- [Dotnet.Aot/scripts/deploy.ps1](../../Dotnet.Aot/scripts/deploy.ps1)
+
+What changed:
+
+- enabled request delegate generation
+- disabled default reflection JSON fallback
+- changed the Docker publish path to request AOT explicitly
+- changed image/deploy defaults to AOT-specific names such as `books-service-dotnet-aot`
+
+Important detail:
+
+- `PublishAot` was not left unconditional in the `.csproj`
+
+Reason:
+
+- making `PublishAot` unconditional forces normal restore/build/test flows to pull the AOT toolchain packages
+- that made the project unusable in offline or partially cached environments
+- the safer layout is to keep the project AOT-oriented while requesting AOT explicitly during publish
+
+### Verification
+
+The copied project was validated with the existing automated tests:
+
+- `dotnet test Dotnet.Aot\tests\AuthorsBooks.UnitTests\AuthorsBooks.UnitTests.csproj -m:1 -v minimal ...`
+- `dotnet test Dotnet.Aot\tests\AuthorsBooks.IntegrationTests\AuthorsBooks.IntegrationTests.csproj -m:1 -v minimal ...`
+
+Results:
+
+- unit tests: `11/11` passed
+- integration tests: `7/7` passed
+
+### Limitations
+
+A full NativeAOT publish was not conclusively verified in this environment.
+
+Observed behavior:
+
+- normal build and test flows worked after the refactor
+- explicit `dotnet publish ... -p:PublishAot=true` did not produce actionable source-level diagnostics in this sandbox
+
+Current interpretation:
+
+- the `Dotnet.Aot` codebase is materially more AOT-ready than the original
+- but it should still be treated as an AOT experiment until a real publish succeeds in a normal connected build environment
+
+### Next Steps
+
+Recommended follow-up outside this sandbox:
+
+1. run `dotnet publish src/AuthorsBooks.Api/AuthorsBooks.Api.csproj -c Release -r linux-x64 -p:PublishAot=true` from `Dotnet.Aot`
+2. resolve any remaining AOT/trimming diagnostics that only appear during full publish
+3. build and deploy the AOT image separately from the existing `Dotnet` service
+4. compare startup time, steady-state CPU, and high-concurrency PerfTest behavior against the current JIT-based `.NET` service
