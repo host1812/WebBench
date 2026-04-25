@@ -30,7 +30,11 @@ public static class ServiceCollectionExtensions
         {
             options.UseNpgsql(
                 postgresConnectionString,
-                postgres => postgres.EnableRetryOnFailure());
+                postgres =>
+                {
+                    postgres.EnableRetryOnFailure();
+                    postgres.CommandTimeout(600);
+                });
 
             options.EnableDetailedErrors();
 

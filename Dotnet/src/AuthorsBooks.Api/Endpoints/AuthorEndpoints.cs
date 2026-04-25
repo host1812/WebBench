@@ -44,7 +44,7 @@ public static class AuthorEndpoints
         CancellationToken cancellationToken)
     {
         var response = await dispatcher.Send(new CreateAuthorCommand(request.Name, request.Bio), cancellationToken);
-        return Results.Created($"/authors/{response.Id}", response);
+        return Results.Created($"/api/v1/authors/{response.Id}", response);
     }
 
     private static async Task<IResult> UpdateAuthorAsync(

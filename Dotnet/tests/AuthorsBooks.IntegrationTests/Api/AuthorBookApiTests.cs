@@ -12,22 +12,22 @@ public sealed class AuthorBookApiTests
         await using var factory = new TestWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var createdAuthorResponse = await client.PostAsJsonAsync("/authors", new CreateAuthorRequest("Terry Pratchett", "Fantasy author"));
+        var createdAuthorResponse = await client.PostAsJsonAsync("/api/v1/authors", new CreateAuthorRequest("Terry Pratchett", "Fantasy author"));
         Assert.Equal(HttpStatusCode.Created, createdAuthorResponse.StatusCode);
         var author = await createdAuthorResponse.Content.ReadFromJsonAsync<AuthorDetailsResponse>();
         Assert.NotNull(author);
 
         var createdBookResponse = await client.PostAsJsonAsync(
-            $"/authors/{author!.Id}/books",
+            $"/api/v1/authors/{author!.Id}/books",
             new CreateBookRequest("Guards! Guards!", 1989, "isbn-123"));
 
         Assert.Equal(HttpStatusCode.Created, createdBookResponse.StatusCode);
         var book = await createdBookResponse.Content.ReadFromJsonAsync<BookResponse>();
         Assert.NotNull(book);
 
-        var listedBooks = await client.GetFromJsonAsync<List<BookResponse>>("/books");
-        var listedBooksByAuthor = await client.GetFromJsonAsync<List<BookResponse>>($"/authors/{author.Id}/books?take=1");
-        var fetchedAuthor = await client.GetFromJsonAsync<AuthorDetailsResponse>($"/authors/{author.Id}");
+        var listedBooks = await client.GetFromJsonAsync<List<BookResponse>>("/api/v1/books");
+        var listedBooksByAuthor = await client.GetFromJsonAsync<List<BookResponse>>($"/api/v1/authors/{author.Id}/books?take=1");
+        var fetchedAuthor = await client.GetFromJsonAsync<AuthorDetailsResponse>($"/api/v1/authors/{author.Id}");
 
         Assert.NotNull(listedBooks);
         Assert.NotNull(listedBooksByAuthor);
@@ -46,7 +46,7 @@ public sealed class AuthorBookApiTests
         await using var factory = new TestWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync($"/books?take={take}");
+        var response = await client.GetAsync($"/api/v1/books?take={take}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());

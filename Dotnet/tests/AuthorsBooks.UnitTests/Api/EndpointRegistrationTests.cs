@@ -12,8 +12,9 @@ public sealed class EndpointRegistrationTests
         var builder = WebApplication.CreateBuilder();
         var app = builder.Build();
 
-        app.MapAuthorEndpoints();
-        app.MapBookEndpoints();
+        var apiV1 = app.MapGroup("/api/v1");
+        apiV1.MapAuthorEndpoints();
+        apiV1.MapBookEndpoints();
 
         var endpoints = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(dataSource => dataSource.Endpoints)
@@ -21,11 +22,11 @@ public sealed class EndpointRegistrationTests
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        Assert.Contains(endpoints, route => string.Equals(route, "/authors", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/authors/", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains("/authors/{authorId:guid}", endpoints);
-        Assert.Contains(endpoints, route => string.Equals(route, "/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/books/", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains("/books/{bookId:guid}", endpoints);
-        Assert.Contains(endpoints, route => string.Equals(route, "/authors/{authorId:guid}/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/authors/{authorId:guid}/books/", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains("/authors/{authorId:guid}/books/{bookId:guid}", endpoints);
+        Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/authors", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/authors/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("/api/v1/authors/{authorId:guid}", endpoints);
+        Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/books/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("/api/v1/books/{bookId:guid}", endpoints);
+        Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/authors/{authorId:guid}/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/authors/{authorId:guid}/books/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("/api/v1/authors/{authorId:guid}/books/{bookId:guid}", endpoints);
     }
 }

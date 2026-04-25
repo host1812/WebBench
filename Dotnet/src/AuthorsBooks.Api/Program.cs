@@ -19,7 +19,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
@@ -48,8 +48,9 @@ app.MapGet(
         }))
     .WithName("GetHealth");
 
-app.MapAuthorEndpoints();
-app.MapBookEndpoints();
+var apiV1 = app.MapGroup("/api/v1");
+apiV1.MapAuthorEndpoints();
+apiV1.MapBookEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

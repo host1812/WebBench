@@ -64,7 +64,7 @@ public static class BookEndpoints
             new CreateBookCommand(authorId, request.Title, request.PublicationYear, request.Isbn),
             cancellationToken);
 
-        return Results.Created($"/books/{response.Id}", response);
+        return Results.Created($"/api/v1/books/{response.Id}", response);
     }
 
     private static async Task<IResult> UpdateBookAsync(

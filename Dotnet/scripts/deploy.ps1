@@ -138,7 +138,23 @@ Invoke-Remote -Target $target -Command "az acr login --name '$acrName'"
 
 Write-Host "Starting API container and applying migrations..."
 Invoke-Remote -Target $target -Command "cd '$remoteDir' && docker compose pull && docker compose up -d api"
-Invoke-Remote -Target $target -Command "cd '$remoteDir' && sleep 10 && apiContainer=`$(docker compose ps -q api) && if [ -z \"`$apiContainer\" ]; then echo 'API container was not created.' >&2; exit 1; fi && apiStatus=`$(docker inspect -f '{{.State.Status}}' \"`$apiContainer\") && if [ \"`$apiStatus\" != 'running' ]; then echo 'API container is not running after startup. Recent logs:' >&2; docker compose logs --tail 200 api >&2; exit 1; fi"
+$remoteDirForShell = $remoteDir.Replace('\', '\\').Replace('"', '\"').Replace('$', '\$')
+$apiStartupCheckCommand = @'
+cd "__REMOTE_DIR__" &&
+sleep 10 &&
+apiContainer=$(docker compose ps -q api) &&
+if [ -z "$apiContainer" ]; then
+  echo 'API container was not created.' >&2
+  exit 1
+fi &&
+apiStatus=$(docker inspect -f '{{.State.Status}}' "$apiContainer") &&
+if [ "$apiStatus" != 'running' ]; then
+  echo 'API container is not running after startup. Recent logs:' >&2
+  docker compose logs --tail 200 api >&2
+  exit 1
+fi
+'@.Replace('__REMOTE_DIR__', $remoteDirForShell)
+Invoke-Remote -Target $target -Command $apiStartupCheckCommand
 
 Write-Host "API container is running. Starting gateway..."
 Invoke-Remote -Target $target -Command "cd '$remoteDir' && docker compose up -d gateway && docker compose ps"
