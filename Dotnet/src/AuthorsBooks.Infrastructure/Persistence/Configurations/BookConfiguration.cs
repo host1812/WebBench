@@ -45,6 +45,12 @@ internal sealed class BookConfiguration : IEntityTypeConfiguration<Book>
         builder.HasIndex(book => book.AuthorId)
             .HasDatabaseName("idx_books_author_id");
 
+        builder.HasIndex(book => book.Title)
+            .HasDatabaseName("idx_books_title");
+
+        builder.HasIndex(book => new { book.AuthorId, book.Title })
+            .HasDatabaseName("idx_books_author_id_title");
+
         builder.HasIndex(book => book.Isbn)
             .HasDatabaseName("idx_books_isbn");
     }

@@ -26,32 +26,100 @@ public sealed class AuthorBookApiTests
         Assert.NotNull(book);
 
         var listedBooks = await client.GetFromJsonAsync<List<BookResponse>>("/api/v1/books");
-        var listedBooksByAuthor = await client.GetFromJsonAsync<List<BookResponse>>($"/api/v1/authors/{author.Id}/books?take=1");
+        var listedBooksByAuthor = await client.GetFromJsonAsync<List<BookResponse>>($"/api/v1/authors/{author.Id}/books?limit=1");
+        var listedBooksByRootFilter = await client.GetFromJsonAsync<List<BookResponse>>($"/api/v1/books?author_id={author.Id}&limit=1");
         var fetchedAuthor = await client.GetFromJsonAsync<AuthorDetailsResponse>($"/api/v1/authors/{author.Id}");
 
         Assert.NotNull(listedBooks);
         Assert.NotNull(listedBooksByAuthor);
+        Assert.NotNull(listedBooksByRootFilter);
         Assert.NotNull(fetchedAuthor);
         Assert.Single(listedBooks!);
         Assert.Single(listedBooksByAuthor!);
+        Assert.Single(listedBooksByRootFilter!);
         Assert.Single(fetchedAuthor!.Books);
         Assert.Equal(book!.Id, listedBooks[0].Id);
+        Assert.Equal(book.Id, listedBooksByRootFilter[0].Id);
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(100001)]
-    public async Task Api_rejects_invalid_book_take_values(int take)
+    [InlineData("limit", 0)]
+    [InlineData("limit", 100001)]
+    [InlineData("take", 0)]
+    [InlineData("take", 100001)]
+    public async Task Api_rejects_invalid_book_limit_values(string parameterName, int value)
     {
         await using var factory = new TestWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync($"/api/v1/books?take={take}");
+        var response = await client.GetAsync($"/api/v1/books?{parameterName}={value}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(problem.RootElement.TryGetProperty("errors", out var errors));
         Assert.True(errors.TryGetProperty("Take", out _));
+    }
+
+    [Fact]
+    public async Task Api_books_endpoint_honors_limit_and_author_id_query_parameters()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var firstAuthor = await CreateAuthorAsync(client, "Author One");
+        var secondAuthor = await CreateAuthorAsync(client, "Author Two");
+
+        await CreateBookAsync(client, firstAuthor.Id, "Alpha");
+        await CreateBookAsync(client, firstAuthor.Id, "Beta");
+        await CreateBookAsync(client, secondAuthor.Id, "Gamma");
+
+        var limitedBooks = await client.GetFromJsonAsync<List<BookResponse>>("/api/v1/books?limit=1");
+        var filteredBooks = await client.GetFromJsonAsync<List<BookResponse>>($"/api/v1/books?author_id={firstAuthor.Id}&limit=10");
+
+        Assert.NotNull(limitedBooks);
+        Assert.NotNull(filteredBooks);
+        Assert.Single(limitedBooks!);
+        Assert.Equal(2, filteredBooks!.Count);
+        Assert.All(filteredBooks, book => Assert.Equal(firstAuthor.Id, book.AuthorId));
+    }
+
+    [Fact]
+    public async Task Api_books_endpoint_keeps_take_as_backward_compatible_alias()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var author = await CreateAuthorAsync(client, "Alias Author");
+        await CreateBookAsync(client, author.Id, "Alpha");
+        await CreateBookAsync(client, author.Id, "Beta");
+
+        var books = await client.GetFromJsonAsync<List<BookResponse>>("/api/v1/books?take=1");
+
+        Assert.NotNull(books);
+        Assert.Single(books!);
+    }
+
+    private static async Task<AuthorDetailsResponse> CreateAuthorAsync(HttpClient client, string name)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/authors", new CreateAuthorRequest(name, $"{name} bio"));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var author = await response.Content.ReadFromJsonAsync<AuthorDetailsResponse>();
+        Assert.NotNull(author);
+        return author!;
+    }
+
+    private static async Task<BookResponse> CreateBookAsync(HttpClient client, Guid authorId, string title)
+    {
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/authors/{authorId}/books",
+            new CreateBookRequest(title, 2000, $"{title}-isbn"));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var book = await response.Content.ReadFromJsonAsync<BookResponse>();
+        Assert.NotNull(book);
+        return book!;
     }
 
     private sealed record CreateAuthorRequest(string Name, string? Bio);

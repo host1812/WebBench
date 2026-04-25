@@ -93,8 +93,14 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("AuthorId")
                     .HasDatabaseName("idx_books_author_id");
 
+                b.HasIndex("AuthorId", "Title")
+                    .HasDatabaseName("idx_books_author_id_title");
+
                 b.HasIndex("Isbn")
                     .HasDatabaseName("idx_books_isbn");
+
+                b.HasIndex("Title")
+                    .HasDatabaseName("idx_books_title");
 
                 b.ToTable("books", "public");
             });

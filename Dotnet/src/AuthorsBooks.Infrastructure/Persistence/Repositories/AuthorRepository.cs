@@ -17,7 +17,7 @@ internal sealed class AuthorRepository(
     {
         using var activity = ServiceTelemetry.StartActivity("repository.author.add", ActivityKind.Internal);
         activity?.SetTag("author.id", author.Id);
-        logger.LogInformation("Adding author {AuthorId}.", author.Id);
+        logger.LogDebug("Adding author {AuthorId}.", author.Id);
         await dbContext.Authors.AddAsync(author, cancellationToken);
     }
 
@@ -36,7 +36,7 @@ internal sealed class AuthorRepository(
     {
         using var activity = ServiceTelemetry.StartActivity("repository.author.remove", ActivityKind.Internal);
         activity?.SetTag("author.id", author.Id);
-        logger.LogInformation("Removing author {AuthorId}.", author.Id);
+        logger.LogDebug("Removing author {AuthorId}.", author.Id);
         dbContext.Authors.Remove(author);
     }
 }

@@ -78,6 +78,7 @@ function Copy-ToRemote {
 $repoRoot = Get-RepoRoot
 $envFile = Join-Path $repoRoot ".env"
 $composeFile = Join-Path $repoRoot "compose.vm.yaml"
+$collectorConfigFile = Join-Path $repoRoot "otel-collector-config.yaml"
 $nginxConfigFile = (Resolve-Path (Join-Path $repoRoot "..\Infra\nginx.vm.conf")).Path
 
 Import-DotEnv -Path $envFile
@@ -86,6 +87,7 @@ Assert-Command "az"
 Assert-Command "ssh"
 Assert-Command "scp"
 Assert-Path $composeFile
+Assert-Path $collectorConfigFile
 Assert-Path $nginxConfigFile
 
 $vmUser = if ($PSBoundParameters.ContainsKey("VmUser")) {
@@ -126,6 +128,7 @@ Invoke-Remote -Target $target -Command "sudo mkdir -p '$remoteDir' && sudo chown
 
 Copy-ToRemote -Target $target -Source $envFile -Destination "$remoteDir/.env"
 Copy-ToRemote -Target $target -Source $composeFile -Destination "$remoteDir/compose.yaml"
+Copy-ToRemote -Target $target -Source $collectorConfigFile -Destination "$remoteDir/otel-collector-config.yaml"
 Copy-ToRemote -Target $target -Source $nginxConfigFile -Destination "$remoteDir/nginx.vm.conf"
 
 Invoke-Remote -Target $target -Command "chmod 600 '$remoteDir/.env'"

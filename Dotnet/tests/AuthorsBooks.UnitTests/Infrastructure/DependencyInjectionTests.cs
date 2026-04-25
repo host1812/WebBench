@@ -3,9 +3,11 @@ using AuthorsBooks.Application.Abstractions.Cqrs;
 using AuthorsBooks.Application.Abstractions.Persistence;
 using AuthorsBooks.Infrastructure;
 using AuthorsBooks.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 namespace AuthorsBooks.UnitTests.Infrastructure;
 
@@ -51,6 +53,48 @@ public sealed class DependencyInjectionTests
         Assert.NotNull(provider.GetService<IAuthorRepository>());
         Assert.NotNull(provider.GetService<IAuthorReadRepository>());
         Assert.NotNull(provider.GetService<IBookReadRepository>());
+    }
+
+    [Fact]
+    public async Task AddInfrastructure_applies_database_max_connections_to_npgsql_pool()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+            [
+                new KeyValuePair<string, string?>("ConnectionStrings:Postgres", "Host=localhost;Database=test;Username=test;Password=test"),
+                new KeyValuePair<string, string?>("Database:MaxConnections", "12"),
+            ])
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment());
+        services.AddLogging();
+        services.AddInfrastructure(configuration);
+
+        await using var provider = services.BuildServiceProvider();
+        var dbContext = provider.GetRequiredService<ApplicationDbContext>();
+        var connectionStringBuilder = new NpgsqlConnectionStringBuilder(dbContext.Database.GetDbConnection().ConnectionString);
+
+        Assert.Equal(12, connectionStringBuilder.MaxPoolSize);
+    }
+
+    [Fact]
+    public void AddInfrastructure_requires_otlp_endpoint_when_telemetry_is_enabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+            [
+                new KeyValuePair<string, string?>("ConnectionStrings:Postgres", "Host=localhost;Database=test;Username=test;Password=test"),
+                new KeyValuePair<string, string?>("Telemetry:Enabled", "true"),
+            ])
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment());
+        services.AddLogging();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => services.AddInfrastructure(configuration));
+        Assert.Contains("Telemetry:OtlpEndpoint", exception.Message);
     }
 
     private sealed class FakeHostEnvironment : IHostEnvironment

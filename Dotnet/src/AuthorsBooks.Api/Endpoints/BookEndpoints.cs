@@ -24,11 +24,16 @@ public static class BookEndpoints
     }
 
     private static async Task<IResult> ListBooksAsync(
-        int? take,
+        [FromQuery(Name = "limit")] int? limit,
+        [FromQuery(Name = "take")] int? take,
+        [FromQuery(Name = "author_id")] Guid? authorId,
         [FromServices] IRequestDispatcher dispatcher,
         CancellationToken cancellationToken)
     {
-        var response = await dispatcher.Send(new ListBooksQuery(take ?? 10_000), cancellationToken);
+        var response = await dispatcher.Send(
+            new ListBooksQuery(ResolveTake(limit, take), authorId),
+            cancellationToken);
+
         return Results.Ok(response);
     }
 
@@ -43,16 +48,19 @@ public static class BookEndpoints
 
     private static async Task<IResult> ListBooksByAuthorAsync(
         Guid authorId,
-        int? take,
+        [FromQuery(Name = "limit")] int? limit,
+        [FromQuery(Name = "take")] int? take,
         [FromServices] IRequestDispatcher dispatcher,
         CancellationToken cancellationToken)
     {
         var response = await dispatcher.Send(
-            new ListBooksQuery(take ?? 10_000, authorId),
+            new ListBooksQuery(ResolveTake(limit, take), authorId),
             cancellationToken);
 
         return Results.Ok(response);
     }
+
+    private static int ResolveTake(int? limit, int? take) => limit ?? take ?? 10_000;
 
     private static async Task<IResult> CreateBookAsync(
         Guid authorId,

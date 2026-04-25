@@ -24,7 +24,7 @@ internal sealed class TelemetryBehavior<TRequest, TResult>(
         {
             var result = await next();
             scope.MarkSuccess();
-            logger.LogInformation("Request {RequestName} completed successfully.", requestName);
+            logger.LogDebug("Request {RequestName} completed successfully.", requestName);
             return result;
         }
         catch (Exception exception)
