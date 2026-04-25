@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuthorsBooks.Application\AuthorsBooks.Application.csproj" />
+    <ProjectReference Include="..\AuthorsBooks.Domain\AuthorsBooks.Domain.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.EntityFrameworkCore.GeneratedInterceptors</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tasks">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Sql\002_seed_catalog.up.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.002_seed_catalog.up.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sql\002_seed_catalog.down.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.002_seed_catalog.down.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sql\003_seed_more_books.up.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.003_seed_more_books.up.sql</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Sql\003_seed_more_books.down.sql">
+      <LogicalName>AuthorsBooks.Infrastructure.Sql.003_seed_more_books.down.sql</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

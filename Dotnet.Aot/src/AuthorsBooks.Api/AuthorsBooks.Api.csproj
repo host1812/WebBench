@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuthorsBooks.Application\AuthorsBooks.Application.csproj" />
+    <ProjectReference Include="..\AuthorsBooks.Infrastructure\AuthorsBooks.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish-win/
+publish-test/
+
+# Test output
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Visual Studio / Rider user files
+.vs/
+*.user
+*.rsuser
+*.suo
+*.sln.docstates
+
+# Local .NET SDK and NuGet caches
+.dotnet/
+.nuget/
+.templateengine/
+
+# Local logs
+*.log
+
+# Local environment overrides
+.env
