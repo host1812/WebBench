@@ -15,6 +15,8 @@ The current work focused on understanding why the `.NET` implementation was much
 Relevant perf log:
 
 - [Docs/PerfResults/Dotnet.md](./PerfResults/Dotnet.md)
+- [Docs/PerfResults/PerfTestsResults.md](./PerfResults/PerfTestsResults.md)
+- [Docs/PerfResults/PerfTestsSummary.md](./PerfResults/PerfTestsSummary.md)
 
 ### What Was Done
 
