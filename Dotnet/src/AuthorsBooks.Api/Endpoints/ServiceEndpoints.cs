@@ -25,13 +25,19 @@ public static class ServiceEndpoints
         [FromServices] ApplicationDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        var isHealthy = await IsDatabaseHealthyAsync(dbContext, cancellationToken);
-        return isHealthy
-            ? TypedResults.Ok(new HealthStatusResponse("healthy"))
-            : TypedResults.Json(new HealthStatusResponse("unhealthy"), statusCode: StatusCodes.Status503ServiceUnavailable);
+        var check = await CheckDatabaseHealthAsync(dbContext, cancellationToken);
+        var response = new HealthStatusResponse(
+            check.Status,
+            "AuthorsBooks.Api",
+            DateTimeOffset.UtcNow,
+            new HealthChecksResponse(new HealthComponentResponse(check.Status, check.Error)));
+
+        return check.IsHealthy
+            ? TypedResults.Ok(response)
+            : TypedResults.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
-    private static async Task<bool> IsDatabaseHealthyAsync(
+    private static async Task<DatabaseHealthResult> CheckDatabaseHealthAsync(
         ApplicationDbContext dbContext,
         CancellationToken cancellationToken)
     {
@@ -49,11 +55,11 @@ public static class ServiceEndpoints
             command.CommandText = "SELECT 1";
             await command.ExecuteScalarAsync(cancellationToken);
 
-            return true;
+            return DatabaseHealthResult.Healthy();
         }
-        catch
+        catch (Exception exception)
         {
-            return false;
+            return DatabaseHealthResult.Unhealthy(exception.Message);
         }
         finally
         {
@@ -62,5 +68,12 @@ public static class ServiceEndpoints
                 await connection.CloseAsync();
             }
         }
+    }
+
+    private sealed record DatabaseHealthResult(bool IsHealthy, string Status, string? Error)
+    {
+        public static DatabaseHealthResult Healthy() => new(true, "healthy", null);
+
+        public static DatabaseHealthResult Unhealthy(string error) => new(false, "unhealthy", error);
     }
 }

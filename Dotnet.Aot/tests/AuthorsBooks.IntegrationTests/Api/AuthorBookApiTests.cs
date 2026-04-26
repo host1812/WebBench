@@ -18,6 +18,9 @@ public sealed class AuthorBookApiTests
         var health = await response.Content.ReadFromJsonAsync<HealthStatusResponse>();
         Assert.NotNull(health);
         Assert.Equal("healthy", health!.Status);
+        Assert.Equal("AuthorsBooks.Api.Aot", health.Service);
+        Assert.Equal("healthy", health.Checks.Database.Status);
+        Assert.Null(health.Checks.Database.Error);
     }
 
     [Fact]
@@ -140,7 +143,11 @@ public sealed class AuthorBookApiTests
 
     private sealed record CreateBookRequest(string Title, int? PublicationYear, string? Isbn);
 
-    private sealed record HealthStatusResponse(string Status);
+    private sealed record HealthStatusResponse(string Status, string Service, DateTimeOffset Time, HealthChecksResponse Checks);
+
+    private sealed record HealthChecksResponse(HealthComponentResponse Database);
+
+    private sealed record HealthComponentResponse(string Status, string? Error);
 
     private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int? PublicationYear, string Isbn);
 
