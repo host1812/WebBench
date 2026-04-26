@@ -4,13 +4,13 @@
 
 ### Scope
 
-This summary analyzes the captured no-health perf-test run documented in [PerfTestsResults.md](./PerfTestsResults.md).
+This summary now covers:
 
-The compared services were:
-
-- `Golang`
-- `Rust`
-- `Dotnet.Aot`
+1. the earlier no-health comparison documented in [PerfTestsResults.md](./PerfTestsResults.md)
+2. the later health-enabled reruns for:
+   - `Dotnet.Aot`
+   - `Golang`
+   - `Rust`
 
 The PostgreSQL CPU graph referenced in this note is the Azure Monitor screenshot provided alongside these results. The graph shows three visible workload spikes:
 
@@ -18,141 +18,149 @@ The PostgreSQL CPU graph referenced in this note is the Azure Monitor screenshot
 - a high plateau around `27%`
 - a low plateau around `5%`
 
-Because the screenshot does not encode service names directly, any mapping from spike-to-service must be treated as an inference from run order and the k6 outputs.
+Because the screenshot does not encode service names directly, any mapping from spike-to-service must still be treated as an inference from run order and the k6 outputs.
 
-## Main Conclusions
+## Current Best Reading Of The Data
 
-### 1. Golang is the best fully successful result in this data set
+### 1. Dotnet.Aot is now the only clean pass in the health-enabled reruns
 
-Go completed all checks successfully and clearly outperformed Rust:
+The health-enabled rerun results are:
 
-- `144.35` HTTP requests/sec vs `68.14`
-- `28.87` iterations/sec vs `13.58`
-- `3.20s` average request duration vs `6.73s`
-- `4.45s` p95 request duration vs `13.77s`
+- `Dotnet.Aot`: `100%` checks succeeded, `0%` failed requests
+- `Golang`: `85.23%` checks succeeded, `14.76%` failed requests
+- `Rust`: `84.78%` checks succeeded, `15.21%` failed requests
 
-This is the strongest valid result in the set because it combines:
+So under the current script shape, `Dotnet.Aot` is the only service in the captured reruns that completed the full workload successfully.
 
-- zero request failures
-- materially higher throughput than Rust
-- materially lower latency than Rust
+### 2. Go and Rust data endpoints still succeed, but their health endpoints fail under load
 
-### 2. Rust is the slowest successful implementation in this run
+For both Go and Rust:
 
-Rust also completed all checks successfully, but it did so with:
+- `authors` succeeded
+- all `books_limit_*` endpoints succeeded
+- only `health` failed
 
-- the worst average latency
-- the worst p95 and p99 latency
-- the lowest request rate
-- the longest end-to-end iteration duration
+The failure counts line up exactly:
 
-The Rust numbers indicate that it drove less total completed workload through the system during the same test window.
+- `Rust`: `4820` failed checks total and `4820` failed `health` checks
+- `Golang`: `9723` failed checks total and `9723` failed `health` checks
 
-### 3. Dotnet.Aot produced the fastest raw timings, but the run is not valid as a pass
+That strongly suggests:
 
-`Dotnet.Aot` looks strongest at first glance:
+- the rerun failures are entirely explained by `/health`
+- the main data paths are still behaving correctly
 
-- `218.58` HTTP requests/sec
-- `2.11s` average request duration
-- `10.58s` average iteration duration
+### 3. Dotnet.Aot currently has the strongest combination of correctness, throughput, and latency
 
-But the run had a structural failure:
+In the current health-enabled reruns, `Dotnet.Aot` shows:
 
-- `20%` failed requests
-- `15756` failed checks total
-- `15756` iterations total
-- `0%` success on the `authors` endpoint
+- `230.01` HTTP requests/sec
+- `38.34` iterations/sec
+- `2.01s` average request duration
+- `3.54s` p95 request duration
+- `0%` request failure
 
-That pattern strongly implies:
+By comparison:
 
-- every iteration lost exactly one checked request
-- the failed request was consistently `GET /api/v1/authors`
+- `Golang` is slower and fails health under load
+- `Rust` is much slower and also fails health under load
 
-So the `Dotnet.Aot` run is not an apples-to-apples success case. It is better described as:
+Within the currently available health-enabled runs, `Dotnet.Aot` is the strongest overall result.
 
-- high throughput on the requests that did succeed
-- incomplete workload execution overall
+### 4. The low PostgreSQL CPU reading for the Dotnet.Aot run now looks materially more credible
 
-### 4. The PostgreSQL CPU graph does not prove Dotnet.Aot is more efficient than Go or Rust
+Previously, low PostgreSQL CPU for the `.NET` run could be explained away by the failed `authors` endpoint.
 
-The low PostgreSQL CPU plateau for the `.NET`-family run must be interpreted together with the failed-request pattern.
+That explanation is no longer viable as the main interpretation because:
 
-If the three graph plateaus correspond to:
+- `Dotnet.Aot` now has a clean rerun
+- it still shows very strong throughput and latency
+- the PostgreSQL CPU screenshot still suggests the lowest DB CPU plateau for the `.NET`-family run if the inferred ordering is correct
 
-1. `Rust`
-2. `Golang`
-3. `Dotnet.Aot`
+That does not prove a universal winner, but it does strengthen the case that:
 
-then the picture is internally consistent:
+- this workload is not primarily limited by raw PostgreSQL CPU
+- `Dotnet.Aot` may currently be converting database work into completed HTTP throughput more efficiently than the other captured implementations
 
-- `Rust` drives moderate DB CPU and low throughput
-- `Golang` drives the highest DB CPU and the highest successful throughput
-- `Dotnet.Aot` drives the lowest DB CPU while also failing one request per iteration
+## Health Endpoint Interpretation
 
-That last point matters. Lower DB CPU here does not automatically mean better DB efficiency. It can also mean:
+### 1. Rust and Go health behavior is now the clearest new finding
 
-- fewer successful database-backed operations per logical workload cycle
-- early request failure
-- less DB work being completed before the response is emitted
+The most important new information is not just that `Dotnet.Aot` is fast. It is that:
 
-In other words, low DB CPU is only a positive signal when the workload is also completing correctly.
+- Go and Rust both degrade specifically at `/health`
+- the rest of their checked endpoints still return HTTP `200`
 
-### 5. The AOT result suggests the bottleneck was not the PostgreSQL server
+That means the dominant current issue for those reruns is health-check robustness, not broad endpoint failure.
 
-The `Dotnet.Aot` run achieved:
+### 2. The health failures look consistent with timeout or pool contention behavior
 
-- the highest request throughput
-- the lowest average request latency
-- the lowest observed PostgreSQL CPU plateau
+The health latencies are revealing:
 
-while still failing the `authors` endpoint completely.
+- `Rust health`: avg `2.15s`, med `2.22s`, p95 `2.56s`
+- `Golang health`: avg `1.94s`, med `2.05s`, p95 `2.07s`
+- `Dotnet.Aot health`: avg `69.21ms`, med `59.14ms`, p95 `120.32ms`
 
-That combination suggests the bottleneck for this run was not simply PostgreSQL saturation. More likely causes are in the service/application layer, for example:
+The Go and Rust health timings cluster around the `2s` mark, which is notable because both implementations use a `2s` health timeout in the request path.
 
-- endpoint-specific exception behavior under load
-- app-side CPU or memory pressure
-- serialization or mapping differences
-- provider/runtime issues specific to the AOT variant
+This strongly suggests that under high load:
 
-This aligns with the earlier investigation trend that not every perf problem was DB-bound.
+- the health check is often waiting too long for a connection or DB roundtrip
+- the request crosses the timeout boundary
+- the endpoint returns a non-`200` status
 
-## Endpoint-Level Interpretation
+This is an inference from the measured timings and code behavior, but it is the most coherent explanation of the rerun data.
 
-### Golang
+### 3. Dotnet.Aot’s health endpoint is not a bottleneck
 
-Go shows a stable and coherent latency progression:
+`Dotnet.Aot` health is cheap:
 
-- `books_limit_10`: `2.92s`
-- `books_limit_100`: `2.96s`
-- `books_limit_1000`: `3.15s`
-- `books_limit_10000_default`: `3.86s`
+- avg `69.21ms`
+- p95 `120.32ms`
+- p99 `177.72ms`
 
-That shape is what you would expect from a service that is completing the intended work and paying more as response size grows.
+So for the current AOT run, `/health` is not materially distorting the workload.
 
-### Rust
-
-Rust also shows the expected directional pattern, but with much larger tail latency:
-
-- `books_limit_10`: `5.76s`
-- `books_limit_100`: `5.30s`
-- `books_limit_1000`: `6.30s`
-- `books_limit_10000_default`: `8.82s`
-
-The spread between median and high-percentile latency is notably larger than in Go, which suggests less stable behavior under pressure.
+## Endpoint-Level Comparison
 
 ### Dotnet.Aot
 
-`Dotnet.Aot` also shows a sensible increasing cost for larger result sets on the book endpoints:
+Current health-enabled rerun:
 
-- `books_limit_10`: `1.77s`
-- `books_limit_100`: `1.77s`
-- `books_limit_1000`: `1.99s`
-- `books_limit_10000_default`: `3.08s`
+- `authors`: `2.38s` avg
+- `books_limit_10`: `2.14s` avg
+- `books_limit_100`: `2.07s` avg
+- `books_limit_1000`: `2.37s` avg
+- `books_limit_10000_default`: `3.04s` avg
+- `health`: `69.21ms` avg
 
-But that cannot be read in isolation because `authors` failed on every iteration. The correct interpretation is:
+This is the most balanced current result in the captured data.
 
-- the books paths that succeeded were fast
-- the overall service workload was still failing
+### Golang
+
+Current health-enabled rerun:
+
+- `authors`: `2.62s` avg
+- `books_limit_10`: `2.36s` avg
+- `books_limit_100`: `2.39s` avg
+- `books_limit_1000`: `2.59s` avg
+- `books_limit_10000_default`: `3.35s` avg
+- `health`: `1.94s` avg, with major failure rate
+
+Ignoring `/health`, Go still looks strong and clearly ahead of Rust. But the current script includes `/health`, so the run does not count as a full pass.
+
+### Rust
+
+Current health-enabled rerun:
+
+- `authors`: `6.83s` avg
+- `books_limit_10`: `5.14s` avg
+- `books_limit_100`: `4.63s` avg
+- `books_limit_1000`: `5.66s` avg
+- `books_limit_10000_default`: `8.23s` avg
+- `health`: `2.15s` avg, with major failure rate
+
+Rust remains the weakest current performer in the captured set.
 
 ## Relationship To The PostgreSQL CPU Screenshot
 
@@ -164,42 +172,78 @@ Assuming the graph order was:
 2. `Golang`
 3. `Dotnet.Aot`
 
-then the approximate PostgreSQL CPU plateaus line up well with the k6 data:
+then the approximate PostgreSQL CPU plateaus line up as:
 
 - `Rust`: about `12%` to `13%`
 - `Golang`: about `27%`
 - `Dotnet.Aot`: about `5%`
 
-### What that likely means
+### Updated interpretation
 
-- Go completed the most successful DB-backed work and therefore drove the highest PostgreSQL CPU
-- Rust completed less work and drove materially less PostgreSQL CPU
-- Dotnet.Aot drove the least PostgreSQL CPU because the run did not execute the full logical workload successfully
+The current best interpretation is:
 
-This is the key reason the graph should not be read as “Dotnet is far more optimized than Go and Rust.”
+- Go appears to push the database hardest
+- Rust appears to push it moderately while delivering the weakest total performance
+- Dotnet.Aot appears able to complete the workload successfully while driving comparatively low PostgreSQL CPU
+
+That suggests:
+
+- the database is not the dominant bottleneck for this benchmark
+- `Dotnet.Aot` may currently be more efficient for this specific workload shape
+
+It is still important not to overclaim from a single screenshot, but the current AOT rerun makes the low DB CPU signal meaningfully stronger than it was before.
+
+## Revised Overall Ranking
+
+### For the current health-enabled captures
+
+1. `Dotnet.Aot`
+   - only clean pass
+   - best throughput
+   - best overall latency
+   - low apparent PostgreSQL CPU
+2. `Golang`
+   - strong data-path performance
+   - clear second place on latency and throughput
+   - disqualified from a full pass by health failures
+3. `Rust`
+   - slowest data-path performance
+   - health failures under load
+   - weakest current result overall
+
+### For the older no-health comparison only
+
+1. `Golang`
+2. `Rust`
+3. `Dotnet.Aot` initial failed run
+
+That older ranking is still historically accurate for that earlier run shape, but it is no longer the best guide to the current system state.
 
 ## Important Caveats
 
-### 1. These are no-health results
+### 1. The health-enabled reruns and the no-health comparison are different workloads
 
-The current perf script has `/health` restored, but the captured results do not include health checks. Future runs with `/health` enabled will not be directly identical to the numbers in this document.
+They should not be collapsed into a single strict ranking without calling out the script difference.
 
-### 2. Dotnet.Aot was not a clean pass
+### 2. Database CPU is still only one signal
 
-Any headline ranking that places `Dotnet.Aot` first must be qualified by the failed `authors` endpoint. Without fixing that issue, the run is not a valid like-for-like comparison against the fully successful Go and Rust runs.
-
-### 3. The PostgreSQL CPU graph should be treated as a correlated signal, not the whole answer
-
-Database CPU alone is not enough to rank service quality. It must be interpreted together with:
+It must be interpreted together with:
 
 - request failure rate
-- successful throughput
 - endpoint coverage
+- throughput
 - latency distribution
+
+### 3. The current Go and Rust failures may say more about health-check design than about the data endpoints
+
+Because only `health` fails in those reruns, it would be wrong to summarize the result as “Go and Rust are generally broken.” The more accurate statement is:
+
+- their primary workload endpoints succeeded
+- their health endpoints were not resilient enough under this load pattern
 
 ## Recommended Next Steps
 
-1. Fix the `Dotnet.Aot` `authors` endpoint failure before using its numbers as a performance winner.
-2. Rerun the three-way comparison with the current restored `/health` endpoint so the script and documentation are back in sync.
-3. Capture the exact run order in future notes so the PostgreSQL CPU graph can be mapped to services without inference.
-4. If `Dotnet.Aot` becomes stable, compare it again against Go on a fully passing workload because those two currently represent the most interesting ends of the throughput spectrum.
+1. Investigate why `Rust` and `Golang` health checks degrade around the `2s` timeout boundary under load.
+2. Check whether DB pool contention or connection acquisition delay is the dominant cause of those health failures.
+3. Decide whether `/health` should continue to perform a real DB probe on every public request in this benchmark, or whether a less contended readiness pattern is more appropriate.
+4. Capture a fresh PostgreSQL CPU screenshot with explicit timestamps and run ordering so the graph-to-service mapping is unambiguous.

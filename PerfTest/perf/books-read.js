@@ -68,7 +68,7 @@ function get(endpoint, path) {
 }
 
 export default function () {
-  get('health', '/health');
+  // get('health', '/health');
   get('authors', '/api/v1/authors');
 
   for (const limitEndpoint of bookLimitEndpoints) {
