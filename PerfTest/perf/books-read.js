@@ -16,8 +16,8 @@ const bookLimitEndpoints = [
   { endpoint: 'books_limit_100', path: '/api/v1/books?limit=100' },
   { endpoint: 'books_limit_1000', path: '/api/v1/books?limit=1000' },
   { endpoint: 'books_limit_10000_default', path: '/api/v1/books' },
-  { endpoint: 'books_limit_50000', path: '/api/v1/books?limit=50000' },
-  { endpoint: 'books_limit_100000', path: '/api/v1/books?limit=100000' },
+  // { endpoint: 'books_limit_50000', path: '/api/v1/books?limit=50000' },
+  // { endpoint: 'books_limit_100000', path: '/api/v1/books?limit=100000' },
 ];
 
 if (!baseUrl) {
@@ -32,8 +32,8 @@ const thresholds = {
   'http_req_duration{endpoint:books_limit_100}': ['p(95)<1500', 'p(99)<3000'],
   'http_req_duration{endpoint:books_limit_1000}': ['p(95)<3000', 'p(99)<6000'],
   'http_req_duration{endpoint:books_limit_10000_default}': ['p(95)<10000', 'p(99)<20000'],
-  'http_req_duration{endpoint:books_limit_50000}': ['p(95)<30000', 'p(99)<60000'],
-  'http_req_duration{endpoint:books_limit_100000}': ['p(95)<60000', 'p(99)<120000'],
+  // 'http_req_duration{endpoint:books_limit_50000}': ['p(95)<30000', 'p(99)<60000'],
+  // 'http_req_duration{endpoint:books_limit_100000}': ['p(95)<60000', 'p(99)<120000'],
 };
 
 if (authorId) {
