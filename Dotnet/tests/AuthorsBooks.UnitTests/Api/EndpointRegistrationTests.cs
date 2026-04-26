@@ -12,6 +12,7 @@ public sealed class EndpointRegistrationTests
         var builder = WebApplication.CreateBuilder();
         var app = builder.Build();
 
+        app.MapServiceEndpoints();
         var apiV1 = app.MapGroup("/api/v1");
         apiV1.MapAuthorEndpoints();
         apiV1.MapBookEndpoints();
@@ -22,6 +23,8 @@ public sealed class EndpointRegistrationTests
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        Assert.Contains("/", endpoints);
+        Assert.Contains("/health", endpoints);
         Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/authors", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/authors/", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/api/v1/authors/{authorId:guid}", endpoints);
         Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/books/", StringComparison.OrdinalIgnoreCase));

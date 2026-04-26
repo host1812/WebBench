@@ -31,22 +31,7 @@ var app = builder.Build();
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
 
-app.MapGet(
-        "/",
-        () => Results.Ok(new
-        {
-            Service = "AuthorsBooks.Api",
-            Status = "ok",
-        }))
-    .WithName("GetServiceStatus");
-
-app.MapGet(
-        "/health",
-        () => Results.Ok(new
-        {
-            Status = "healthy",
-        }))
-    .WithName("GetHealth");
+app.MapServiceEndpoints();
 
 var apiV1 = app.MapGroup("/api/v1");
 apiV1.MapAuthorEndpoints();

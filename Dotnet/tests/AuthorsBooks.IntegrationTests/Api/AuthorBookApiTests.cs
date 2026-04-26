@@ -7,6 +7,20 @@ namespace AuthorsBooks.IntegrationTests.Api;
 public sealed class AuthorBookApiTests
 {
     [Fact]
+    public async Task Api_health_endpoint_checks_database_connectivity()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var health = await response.Content.ReadFromJsonAsync<HealthStatusResponse>();
+        Assert.NotNull(health);
+        Assert.Equal("healthy", health!.Status);
+    }
+
+    [Fact]
     public async Task Api_supports_author_and_book_management_flow()
     {
         await using var factory = new TestWebApplicationFactory();
@@ -125,6 +139,8 @@ public sealed class AuthorBookApiTests
     private sealed record CreateAuthorRequest(string Name, string? Bio);
 
     private sealed record CreateBookRequest(string Title, int? PublicationYear, string? Isbn);
+
+    private sealed record HealthStatusResponse(string Status);
 
     private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int? PublicationYear, string Isbn);
 
