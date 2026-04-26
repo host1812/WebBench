@@ -26,7 +26,7 @@ public static class AuthorEndpoints
         CancellationToken cancellationToken)
     {
         var response = await dispatcher.Send(new ListAuthorsQuery(), cancellationToken);
-        return Results.Ok(response);
+        return TypedResults.Ok(response.ToArray());
     }
 
     private static async Task<IResult> GetAuthorByIdAsync(

@@ -24,6 +24,21 @@ public sealed class AuthorBookApiTests
     }
 
     [Fact]
+    public async Task Api_authors_endpoint_returns_author_summaries()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        await CreateAuthorAsync(client, "Listed Author");
+
+        var authors = await client.GetFromJsonAsync<List<AuthorSummaryResponse>>("/api/v1/authors");
+
+        Assert.NotNull(authors);
+        Assert.Single(authors!);
+        Assert.Equal("Listed Author", authors[0].Name);
+    }
+
+    [Fact]
     public async Task Api_supports_author_and_book_management_flow()
     {
         await using var factory = new TestWebApplicationFactory();
@@ -148,6 +163,8 @@ public sealed class AuthorBookApiTests
     private sealed record HealthChecksResponse(HealthComponentResponse Database);
 
     private sealed record HealthComponentResponse(string Status, string? Error);
+
+    private sealed record AuthorSummaryResponse(Guid Id, string Name, string Bio, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc, int BookCount);
 
     private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int? PublicationYear, string Isbn);
 

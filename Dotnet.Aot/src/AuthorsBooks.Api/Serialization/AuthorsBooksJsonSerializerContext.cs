@@ -15,6 +15,7 @@ namespace AuthorsBooks.Api.Serialization;
 [JsonSerializable(typeof(HealthChecksResponse))]
 [JsonSerializable(typeof(HealthComponentResponse))]
 [JsonSerializable(typeof(AuthorSummaryResponse))]
+[JsonSerializable(typeof(IReadOnlyList<AuthorSummaryResponse>))]
 [JsonSerializable(typeof(AuthorSummaryResponse[]))]
 [JsonSerializable(typeof(AuthorDetailsResponse))]
 [JsonSerializable(typeof(BookResponse))]
