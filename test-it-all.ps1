@@ -640,6 +640,63 @@ function Get-OptionalProperty {
     return $property.Value
 }
 
+function Get-BarFillClass {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Status
+    )
+
+    switch ($Status) {
+        "passed" { return "bar-fill-passed" }
+        "perf_failed" { return "bar-fill-warning" }
+        default { return "bar-fill-failed" }
+    }
+}
+
+function New-DurationChartItem {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+
+        [AllowNull()]
+        [object]$Stats,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Status
+    )
+
+    if ($null -eq $Stats) {
+        return $null
+    }
+
+    $defaultValue = Get-OptionalProperty -InputObject $Stats -Name "p95Ms"
+    $defaultDisplay = Get-OptionalProperty -InputObject $Stats -Name "p95"
+
+    if ($null -eq $defaultValue) {
+        $defaultValue = Get-OptionalProperty -InputObject $Stats -Name "avgMs"
+        $defaultDisplay = Get-OptionalProperty -InputObject $Stats -Name "avg"
+    }
+
+    if ($null -eq $defaultValue) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Label      = $Label
+        Value      = $defaultValue
+        Display    = $defaultDisplay
+        CssClass   = Get-BarFillClass -Status $Status
+        AvgValue   = Get-OptionalProperty -InputObject $Stats -Name "avgMs"
+        AvgDisplay = Get-OptionalProperty -InputObject $Stats -Name "avg"
+        P90Value   = Get-OptionalProperty -InputObject $Stats -Name "p90Ms"
+        P90Display = Get-OptionalProperty -InputObject $Stats -Name "p90"
+        P95Value   = Get-OptionalProperty -InputObject $Stats -Name "p95Ms"
+        P95Display = Get-OptionalProperty -InputObject $Stats -Name "p95"
+        P99Value   = Get-OptionalProperty -InputObject $Stats -Name "p99Ms"
+        P99Display = Get-OptionalProperty -InputObject $Stats -Name "p99"
+    }
+}
+
 function New-BarChartHtml {
     param(
         [Parameter(Mandatory = $true)]
@@ -654,6 +711,14 @@ function New-BarChartHtml {
         return ""
     }
 
+    $isMetricSwitchable = $false
+    foreach ($item in $itemList) {
+        if ($null -ne (Get-OptionalProperty -InputObject $item -Name "P95Value")) {
+            $isMetricSwitchable = $true
+            break
+        }
+    }
+
     $maxValue = ($itemList | Measure-Object -Property Value -Maximum).Maximum
     if ($null -eq $maxValue -or $maxValue -le 0) {
         $maxValue = 1
@@ -666,10 +731,23 @@ function New-BarChartHtml {
 
     foreach ($item in ($itemList | Sort-Object -Property Value -Descending)) {
         $width = [math]::Max(1, [math]::Round(($item.Value / $maxValue) * 100, 2))
+        $metricAttributes = ""
+        if ($isMetricSwitchable) {
+            $metricAttributes = " data-avg-value='{0}' data-avg-display='{1}' data-p90-value='{2}' data-p90-display='{3}' data-p95-value='{4}' data-p95-display='{5}' data-p99-value='{6}' data-p99-display='{7}'" -f `
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgValue")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgDisplay")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Value")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Display")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Value")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Display")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Value")),
+                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Display"))
+        }
+
         [void]$builder.AppendLine("    <div class='bar-row'>")
         [void]$builder.AppendLine(("      <div class='bar-label'>{0}</div>" -f (ConvertTo-HtmlText -Value $item.Label)))
         [void]$builder.AppendLine("      <div class='bar-track'>")
-        [void]$builder.AppendLine(("        <div class='bar-fill {0}' style='width: {1}%;'></div>" -f $item.CssClass, $width.ToString([System.Globalization.CultureInfo]::InvariantCulture)))
+        [void]$builder.AppendLine(("        <div class='bar-fill {0}' style='width: {1}%;'{2}></div>" -f $item.CssClass, $width.ToString([System.Globalization.CultureInfo]::InvariantCulture), $metricAttributes))
         [void]$builder.AppendLine("      </div>")
         [void]$builder.AppendLine(("      <div class='bar-value'>{0}</div>" -f (ConvertTo-HtmlText -Value $item.Display)))
         [void]$builder.AppendLine("    </div>")
@@ -712,6 +790,10 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    p { margin: 0 0 8px 0; }")
     [void]$builder.AppendLine("    .layout { display: grid; gap: 20px; }")
     [void]$builder.AppendLine("    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 8px 24px rgba(20, 32, 51, 0.06); }")
+    [void]$builder.AppendLine("    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }")
+    [void]$builder.AppendLine("    .section-header h2 { margin: 0; }")
+    [void]$builder.AppendLine("    .metric-picker { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }")
+    [void]$builder.AppendLine("    .metric-picker select { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); padding: 6px 10px; font: inherit; }")
     [void]$builder.AppendLine("    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }")
     [void]$builder.AppendLine("    .meta-item { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcff; }")
     [void]$builder.AppendLine("    .meta-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }")
@@ -803,39 +885,10 @@ function New-RunReportHtml {
 
     $overviewChartHtml = @()
 
-    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p95 - ⬇️ better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP latency - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqDuration"
-            if ($null -ne $stats -and $null -ne $stats.p95Ms) {
-                [pscustomobject]@{
-                    Label    = $project.project
-                    Value    = $stats.p95Ms
-                    Display  = $stats.p95
-                    CssClass = switch ($project.status) {
-                        "passed" { "bar-fill-passed" }
-                        "perf_failed" { "bar-fill-warning" }
-                        default { "bar-fill-failed" }
-                    }
-                }
-            }
-        }
-    )
-
-    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p99 - ⬇️ better" -Items @(
-        foreach ($project in $projects) {
-            $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqDuration"
-            if ($null -ne $stats -and $null -ne $stats.p99Ms) {
-                [pscustomobject]@{
-                    Label    = $project.project
-                    Value    = $stats.p99Ms
-                    Display  = $stats.p99
-                    CssClass = switch ($project.status) {
-                        "passed" { "bar-fill-passed" }
-                        "perf_failed" { "bar-fill-warning" }
-                        default { "bar-fill-failed" }
-                    }
-                }
-            }
+            New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
         }
     )
 
@@ -847,11 +900,7 @@ function New-RunReportHtml {
                     Label    = $project.project
                     Value    = $stats.rateFraction
                     Display  = $stats.rate
-                    CssClass = switch ($project.status) {
-                        "passed" { "bar-fill-passed" }
-                        "perf_failed" { "bar-fill-warning" }
-                        default { "bar-fill-failed" }
-                    }
+                    CssClass = Get-BarFillClass -Status $project.status
                 }
             }
         }
@@ -865,37 +914,25 @@ function New-RunReportHtml {
                     Label    = $project.project
                     Value    = $stats.ratePerSecond
                     Display  = $stats.rate
-                    CssClass = switch ($project.status) {
-                        "passed" { "bar-fill-passed" }
-                        "perf_failed" { "bar-fill-warning" }
-                        default { "bar-fill-failed" }
-                    }
+                    CssClass = Get-BarFillClass -Status $project.status
                 }
             }
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Iteration Duration p95 - ⬇️ better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Iteration duration - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "iterationDuration"
-            if ($null -ne $stats -and $null -ne $stats.p95Ms) {
-                [pscustomobject]@{
-                    Label    = $project.project
-                    Value    = $stats.p95Ms
-                    Display  = $stats.p95
-                    CssClass = switch ($project.status) {
-                        "passed" { "bar-fill-passed" }
-                        "perf_failed" { "bar-fill-warning" }
-                        default { "bar-fill-failed" }
-                    }
-                }
-            }
+            New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
         }
     )
 
     [void]$builder.AppendLine("    <section class='panel'>")
-    [void]$builder.AppendLine("      <h2>Overview Charts</h2>")
-    [void]$builder.AppendLine("      <div class='chart-grid'>")
+    [void]$builder.AppendLine("      <div class='section-header'>")
+    [void]$builder.AppendLine("        <h2>Overview Charts</h2>")
+    [void]$builder.AppendLine("        <label class='metric-picker'>Latency metric <select data-metric-selector='overview-charts'><option value='p99'>p99</option><option value='p95' selected>p95</option><option value='p90'>p90</option><option value='avg'>avg</option></select></label>")
+    [void]$builder.AppendLine("      </div>")
+    [void]$builder.AppendLine("      <div id='overview-charts' class='chart-grid'>")
     foreach ($chartHtml in $overviewChartHtml) {
         if (-not [string]::IsNullOrWhiteSpace($chartHtml)) {
             [void]$builder.Append($chartHtml)
@@ -905,60 +942,31 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    </section>")
 
     [void]$builder.AppendLine("    <section class='panel'>")
-    [void]$builder.AppendLine("      <h2>Per-Endpoint Charts</h2>")
+    [void]$builder.AppendLine("      <div class='section-header'>")
+    [void]$builder.AppendLine("        <h2>Per-Endpoint Charts</h2>")
+    [void]$builder.AppendLine("        <label class='metric-picker'>Latency metric <select data-metric-selector='endpoint-charts'><option value='p99'>p99</option><option value='p95' selected>p95</option><option value='p90'>p90</option><option value='avg'>avg</option></select></label>")
+    [void]$builder.AppendLine("      </div>")
+    [void]$builder.AppendLine("      <div id='endpoint-charts'>")
 
     foreach ($endpointName in ($endpointNames | Sort-Object)) {
-        $endpointP95Chart = New-BarChartHtml -Title ("{0} p95 - ⬇️ better" -f $endpointName) -Items @(
+        $endpointChart = New-BarChartHtml -Title ("{0} latency - ⬇️ better" -f $endpointName) -Items @(
             foreach ($project in $projects) {
                 $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "endpoints") -Name $endpointName
-                if ($null -ne $stats -and $null -ne $stats.p95Ms) {
-                    [pscustomobject]@{
-                        Label    = $project.project
-                        Value    = $stats.p95Ms
-                        Display  = $stats.p95
-                        CssClass = switch ($project.status) {
-                            "passed" { "bar-fill-passed" }
-                            "perf_failed" { "bar-fill-warning" }
-                            default { "bar-fill-failed" }
-                        }
-                    }
-                }
+                New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
             }
         )
 
-        $endpointP99Chart = New-BarChartHtml -Title ("{0} p99 - ⬇️ better" -f $endpointName) -Items @(
-            foreach ($project in $projects) {
-                $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "endpoints") -Name $endpointName
-                if ($null -ne $stats -and $null -ne $stats.p99Ms) {
-                    [pscustomobject]@{
-                        Label    = $project.project
-                        Value    = $stats.p99Ms
-                        Display  = $stats.p99
-                        CssClass = switch ($project.status) {
-                            "passed" { "bar-fill-passed" }
-                            "perf_failed" { "bar-fill-warning" }
-                            default { "bar-fill-failed" }
-                        }
-                    }
-                }
-            }
-        )
-
-        if ([string]::IsNullOrWhiteSpace($endpointP95Chart) -and [string]::IsNullOrWhiteSpace($endpointP99Chart)) {
+        if ([string]::IsNullOrWhiteSpace($endpointChart)) {
             continue
         }
 
         [void]$builder.AppendLine(("      <h3>{0}</h3>" -f (ConvertTo-HtmlText -Value $endpointName)))
         [void]$builder.AppendLine("      <div class='chart-grid'>")
-        if (-not [string]::IsNullOrWhiteSpace($endpointP95Chart)) {
-            [void]$builder.Append($endpointP95Chart)
-        }
-        if (-not [string]::IsNullOrWhiteSpace($endpointP99Chart)) {
-            [void]$builder.Append($endpointP99Chart)
-        }
+        [void]$builder.Append($endpointChart)
         [void]$builder.AppendLine("      </div>")
     }
 
+    [void]$builder.AppendLine("      </div>")
     [void]$builder.AppendLine("    </section>")
 
     [void]$builder.AppendLine("    <section class='panel'>")
@@ -995,6 +1003,35 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("      </table>")
     [void]$builder.AppendLine("    </section>")
 
+    [void]$builder.AppendLine("    <script>")
+    [void]$builder.AppendLine("      function updateMetricCharts(containerId, metric) {")
+    [void]$builder.AppendLine("        const container = document.getElementById(containerId);")
+    [void]$builder.AppendLine("        if (!container) return;")
+    [void]$builder.AppendLine("        for (const chart of container.querySelectorAll('.bar-chart')) {")
+    [void]$builder.AppendLine("          const rows = Array.from(chart.querySelectorAll('.bar-row'));")
+    [void]$builder.AppendLine("          const rowValues = rows.map((row) => {")
+    [void]$builder.AppendLine("            const fill = row.querySelector('.bar-fill');")
+    [void]$builder.AppendLine("            const rawValue = fill ? fill.dataset[metric + 'Value'] : '';")
+    [void]$builder.AppendLine("            const value = rawValue === '' ? NaN : Number(rawValue);")
+    [void]$builder.AppendLine("            return { row, fill, value, display: fill ? fill.dataset[metric + 'Display'] : '' };")
+    [void]$builder.AppendLine("          }).filter((item) => item.fill && Number.isFinite(item.value));")
+    [void]$builder.AppendLine("          if (rowValues.length === 0) continue;")
+    [void]$builder.AppendLine("          const maxValue = Math.max(...rowValues.map((item) => item.value), 1);")
+    [void]$builder.AppendLine("          rowValues.sort((left, right) => right.value - left.value);")
+    [void]$builder.AppendLine("          for (const item of rowValues) {")
+    [void]$builder.AppendLine("            const width = Math.max(1, (item.value / maxValue) * 100);")
+    [void]$builder.AppendLine("            item.fill.style.width = `${width.toFixed(2)}%`;")
+    [void]$builder.AppendLine("            const valueElement = item.row.querySelector('.bar-value');")
+    [void]$builder.AppendLine("            if (valueElement) valueElement.textContent = item.display || String(item.value);")
+    [void]$builder.AppendLine("            chart.appendChild(item.row);")
+    [void]$builder.AppendLine("          }")
+    [void]$builder.AppendLine("        }")
+    [void]$builder.AppendLine("      }")
+    [void]$builder.AppendLine("      for (const selector of document.querySelectorAll('[data-metric-selector]')) {")
+    [void]$builder.AppendLine("        updateMetricCharts(selector.dataset.metricSelector, selector.value);")
+    [void]$builder.AppendLine("        selector.addEventListener('change', () => updateMetricCharts(selector.dataset.metricSelector, selector.value));")
+    [void]$builder.AppendLine("      }")
+    [void]$builder.AppendLine("    </script>")
     [void]$builder.AppendLine("  </div>")
     [void]$builder.AppendLine("</body>")
     [void]$builder.AppendLine("</html>")
