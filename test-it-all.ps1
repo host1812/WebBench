@@ -742,14 +742,14 @@ function New-BarChartHtml {
         $metricAttributes = ""
         if ($isMetricSwitchable) {
             $metricAttributes = " data-avg-value='{0}' data-avg-display='{1}' data-p90-value='{2}' data-p90-display='{3}' data-p95-value='{4}' data-p95-display='{5}' data-p99-value='{6}' data-p99-display='{7}'" -f `
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgValue")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgDisplay")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Value")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Display")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Value")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Display")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Value")),
-                (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Display"))
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgValue")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "AvgDisplay")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Value")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P90Display")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Value")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P95Display")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Value")),
+            (ConvertTo-HtmlText -Value (Get-OptionalProperty -InputObject $item -Name "P99Display"))
         }
 
         [void]$builder.AppendLine("    <div class='bar-row'>")
@@ -804,7 +804,10 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }")
     [void]$builder.AppendLine("    .section-header h2 { margin: 0; }")
     [void]$builder.AppendLine("    .metric-picker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }")
-    [void]$builder.AppendLine("    .metric-picker select { border: 1px solid var(--line); border-radius: 2px; background: #fff; color: var(--text); padding: 3px 8px; font: inherit; }")
+    [void]$builder.AppendLine("    .metric-buttons { display: inline-flex; border: 1px solid var(--line); background: #fff; }")
+    [void]$builder.AppendLine("    .metric-button { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); padding: 3px 8px; font: inherit; cursor: pointer; }")
+    [void]$builder.AppendLine("    .metric-button:last-child { border-right: 0; }")
+    [void]$builder.AppendLine("    .metric-button.active { background: #142033; color: #fff; }")
     [void]$builder.AppendLine("    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }")
     [void]$builder.AppendLine("    .meta-item { padding: 7px 8px; border: 1px solid var(--line); border-radius: 2px; background: #fbfcff; }")
     [void]$builder.AppendLine("    .meta-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }")
@@ -817,7 +820,9 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    .status-warning { background: rgba(201, 131, 21, 0.12); color: var(--warn); }")
     [void]$builder.AppendLine("    .status-failed { background: rgba(196, 61, 61, 0.12); color: var(--bad); }")
     [void]$builder.AppendLine("    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }")
+    [void]$builder.AppendLine("    .endpoint-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }")
     [void]$builder.AppendLine("    .chart-grid .panel { padding: 8px; }")
+    [void]$builder.AppendLine("    .endpoint-grid .panel { padding: 8px; }")
     [void]$builder.AppendLine("    .bar-chart { display: grid; gap: 5px; }")
     [void]$builder.AppendLine("    .bar-row { display: grid; grid-template-columns: 94px minmax(80px, 1fr) 62px; gap: 7px; align-items: center; }")
     [void]$builder.AppendLine("    .bar-label, .bar-value { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }")
@@ -831,7 +836,7 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    a:hover { text-decoration: underline; }")
     [void]$builder.AppendLine("    .link-list { display: flex; flex-wrap: wrap; gap: 5px; }")
     [void]$builder.AppendLine("    .small { color: var(--muted); font-size: 11px; }")
-    [void]$builder.AppendLine("    @media (max-width: 720px) { body { padding: 8px; } .section-header { align-items: flex-start; flex-direction: column; } .chart-grid { grid-template-columns: 1fr; } }")
+    [void]$builder.AppendLine("    @media (max-width: 720px) { body { padding: 8px; } .section-header { align-items: flex-start; flex-direction: column; } .chart-grid, .endpoint-grid { grid-template-columns: 1fr; } }")
     [void]$builder.AppendLine("  </style>")
     [void]$builder.AppendLine("</head>")
     [void]$builder.AppendLine("<body>")
@@ -944,7 +949,7 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    <section class='panel'>")
     [void]$builder.AppendLine("      <div class='section-header'>")
     [void]$builder.AppendLine("        <h2>Overview Charts</h2>")
-    [void]$builder.AppendLine("        <label class='metric-picker'>Latency metric <select data-metric-selector='overview-charts'><option value='p99'>p99</option><option value='p95' selected>p95</option><option value='p90'>p90</option><option value='avg'>avg</option></select></label>")
+    [void]$builder.AppendLine("        <div class='metric-picker'>Latency metric <div class='metric-buttons' data-metric-buttons='overview-charts'><button type='button' class='metric-button' data-metric-value='p99'>p99</button><button type='button' class='metric-button active' data-metric-value='p95'>p95</button><button type='button' class='metric-button' data-metric-value='p90'>p90</button><button type='button' class='metric-button' data-metric-value='avg'>avg</button></div></div>")
     [void]$builder.AppendLine("      </div>")
     [void]$builder.AppendLine("      <div id='overview-charts' class='chart-grid'>")
     foreach ($chartHtml in $overviewChartHtml) {
@@ -958,9 +963,9 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    <section class='panel'>")
     [void]$builder.AppendLine("      <div class='section-header'>")
     [void]$builder.AppendLine("        <h2>Per-Endpoint Charts</h2>")
-    [void]$builder.AppendLine("        <label class='metric-picker'>Latency metric <select data-metric-selector='endpoint-charts'><option value='p99'>p99</option><option value='p95' selected>p95</option><option value='p90'>p90</option><option value='avg'>avg</option></select></label>")
+    [void]$builder.AppendLine("        <div class='metric-picker'>Latency metric <div class='metric-buttons' data-metric-buttons='endpoint-charts'><button type='button' class='metric-button' data-metric-value='p99'>p99</button><button type='button' class='metric-button active' data-metric-value='p95'>p95</button><button type='button' class='metric-button' data-metric-value='p90'>p90</button><button type='button' class='metric-button' data-metric-value='avg'>avg</button></div></div>")
     [void]$builder.AppendLine("      </div>")
-    [void]$builder.AppendLine("      <div id='endpoint-charts'>")
+    [void]$builder.AppendLine("      <div id='endpoint-charts' class='endpoint-grid'>")
 
     foreach ($endpointName in ($endpointNames | Sort-Object)) {
         $endpointChart = New-BarChartHtml -Title ("{0} latency - ⬇️ better" -f $endpointName) -Items @(
@@ -974,10 +979,7 @@ function New-RunReportHtml {
             continue
         }
 
-        [void]$builder.AppendLine(("      <h3>{0}</h3>" -f (ConvertTo-HtmlText -Value $endpointName)))
-        [void]$builder.AppendLine("      <div class='chart-grid'>")
         [void]$builder.Append($endpointChart)
-        [void]$builder.AppendLine("      </div>")
     }
 
     [void]$builder.AppendLine("      </div>")
@@ -1025,25 +1027,33 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("          const rows = Array.from(chart.querySelectorAll('.bar-row'));")
     [void]$builder.AppendLine("          const rowValues = rows.map((row) => {")
     [void]$builder.AppendLine("            const fill = row.querySelector('.bar-fill');")
-    [void]$builder.AppendLine("            const rawValue = fill ? fill.dataset[metric + 'Value'] : '';")
+    [void]$builder.AppendLine("            const rawValue = fill ? fill.getAttribute('data-' + metric + '-value') : '';")
     [void]$builder.AppendLine("            const value = rawValue === '' ? NaN : Number(rawValue);")
-    [void]$builder.AppendLine("            return { row, fill, value, display: fill ? fill.dataset[metric + 'Display'] : '' };")
+    [void]$builder.AppendLine("            return { row, fill, value, display: fill ? fill.getAttribute('data-' + metric + '-display') : '' };")
     [void]$builder.AppendLine("          }).filter((item) => item.fill && Number.isFinite(item.value));")
     [void]$builder.AppendLine("          if (rowValues.length === 0) continue;")
     [void]$builder.AppendLine("          const maxValue = Math.max(...rowValues.map((item) => item.value), 1);")
     [void]$builder.AppendLine("          rowValues.sort((left, right) => right.value - left.value);")
     [void]$builder.AppendLine("          for (const item of rowValues) {")
     [void]$builder.AppendLine("            const width = Math.max(1, (item.value / maxValue) * 100);")
-    [void]$builder.AppendLine("            item.fill.style.width = `${width.toFixed(2)}%`;")
+    [void]$builder.AppendLine("            item.fill.style.width = width.toFixed(2) + '%';")
     [void]$builder.AppendLine("            const valueElement = item.row.querySelector('.bar-value');")
     [void]$builder.AppendLine("            if (valueElement) valueElement.textContent = item.display || String(item.value);")
     [void]$builder.AppendLine("            chart.appendChild(item.row);")
     [void]$builder.AppendLine("          }")
     [void]$builder.AppendLine("        }")
     [void]$builder.AppendLine("      }")
-    [void]$builder.AppendLine("      for (const selector of document.querySelectorAll('[data-metric-selector]')) {")
-    [void]$builder.AppendLine("        updateMetricCharts(selector.dataset.metricSelector, selector.value);")
-    [void]$builder.AppendLine("        selector.addEventListener('change', () => updateMetricCharts(selector.dataset.metricSelector, selector.value));")
+    [void]$builder.AppendLine("      for (const group of document.querySelectorAll('[data-metric-buttons]')) {")
+    [void]$builder.AppendLine("        const containerId = group.getAttribute('data-metric-buttons');")
+    [void]$builder.AppendLine("        const activeButton = group.querySelector('.metric-button.active') || group.querySelector('.metric-button');")
+    [void]$builder.AppendLine("        if (activeButton) updateMetricCharts(containerId, activeButton.getAttribute('data-metric-value'));")
+    [void]$builder.AppendLine("        for (const button of group.querySelectorAll('.metric-button')) {")
+    [void]$builder.AppendLine("          button.addEventListener('click', () => {")
+    [void]$builder.AppendLine("            for (const sibling of group.querySelectorAll('.metric-button')) sibling.classList.remove('active');")
+    [void]$builder.AppendLine("            button.classList.add('active');")
+    [void]$builder.AppendLine("            updateMetricCharts(containerId, button.getAttribute('data-metric-value'));")
+    [void]$builder.AppendLine("          });")
+    [void]$builder.AppendLine("        }")
     [void]$builder.AppendLine("      }")
     [void]$builder.AppendLine("    </script>")
     [void]$builder.AppendLine("  </div>")
