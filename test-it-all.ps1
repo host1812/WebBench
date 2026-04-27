@@ -1112,10 +1112,10 @@ for ($index = 0; $index -lt $projects.Count; $index++) {
     $metadata | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $metadataPath
     $results.Add([pscustomobject]$metadata)
 
-    Write-Host ("Status for {0}: {1}" -f $project.Name, $status)
+    Write-Verbose ("Status for {0}: {1}" -f $project.Name, $status)
 
     if ($index -lt ($projects.Count - 1)) {
-        Write-Host ("Waiting {0} ({1} seconds) before the next test." -f $IdleDuration, $idleDurationSeconds)
+        Write-Verbose ("Waiting {0} ({1} seconds) before the next test." -f $IdleDuration, $idleDurationSeconds)
         Wait-WithProgress -Seconds $idleDurationSeconds -ProgressId 4 -Activity ("{0}: Idling" -f $project.Name)
     }
 }
