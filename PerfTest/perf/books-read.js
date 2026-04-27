@@ -46,11 +46,14 @@ if (bookId) {
 
 export const options = {
   insecureSkipTLSVerify: skipTlsVerify,
-  stages: [
-    { duration: '30s', target: Number.isFinite(targetVus) && targetVus > 0 ? targetVus : 25 },
-    { duration: holdDuration, target: Number.isFinite(targetVus) && targetVus > 0 ? targetVus : 25 },
-    { duration: '30s', target: 0 },
-  ],
+  scenarios: {
+    default: {
+      executor: 'constant-vus',
+      vus: Number.isFinite(targetVus) && targetVus > 0 ? targetVus : 25,
+      duration: holdDuration,
+      gracefulStop: '0s',
+    },
+  },
   thresholds,
   summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };
