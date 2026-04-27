@@ -1163,6 +1163,8 @@ for ($index = 0; $index -lt $projects.Count; $index++) {
 $summaryPath = Join-Path $runDirectory "summary.json"
 $htmlPath = Join-Path $runDirectory "index.html"
 $runFinishedAt = Get-Date
+$runElapsed = $runFinishedAt - $runStartedAt
+$runElapsedDisplay = "{0:00}:{1:00}:{2:00}" -f [math]::Floor($runElapsed.TotalHours), $runElapsed.Minutes, $runElapsed.Seconds
 $projectResults = [object[]]$results
 
 Write-Verbose ("Preparing run summary for {0} project(s)." -f $projectResults.Count)
@@ -1207,6 +1209,7 @@ Write-Verbose "Summary artifacts written successfully"
 Write-Progress -Id 1 -Activity "Project sweep" -Completed
 Write-Section "Summary"
 $results | Format-Table project, status, buildExitCode, deployExitCode, perfExitCode -AutoSize
+Write-Host "Total duration: $runElapsedDisplay"
 Write-Host "Run folder: $runDirectory"
 Write-Host "Summary written to $summaryPath"
 Write-Host "Aggregate report written to $htmlPath"
