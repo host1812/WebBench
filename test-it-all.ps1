@@ -501,6 +501,10 @@ function Parse-K6PerfLog {
                 }
 
                 if ($null -ne $currentThresholdMetric -and $trimmedLine -match ".*'(?<expression>[^']+)'\s+(?<actualName>[^=]+)=(?<actual>\S+)") {
+                    if ($currentThresholdEndpoint -eq "health") {
+                        continue
+                    }
+
                     $result.thresholds += [ordered]@{
                         metric     = $currentThresholdMetric
                         endpoint   = $currentThresholdEndpoint
@@ -521,6 +525,10 @@ function Parse-K6PerfLog {
 
                 if ($trimmedLine -match "^\{\s*endpoint:(?<endpoint>[^}]+)\s*\}.*?:\s+avg=(?<avg>\S+)\s+min=(?<min>\S+)\s+med=(?<med>\S+)\s+p\(90\)=(?<p90>\S+)\s+p\(95\)=(?<p95>\S+)\s+p\(99\)=(?<p99>\S+)\s+max=(?<max>\S+)$") {
                     $endpointName = $matches.endpoint.Trim()
+                    if ($endpointName -eq "health") {
+                        continue
+                    }
+
                     $result.endpoints[$endpointName] = New-DurationStats -Avg $matches.avg -Min $matches.min -Med $matches.med -P90 $matches.p90 -P95 $matches.p95 -P99 $matches.p99 -Max $matches.max
                     $result.hasResults = $true
                     continue

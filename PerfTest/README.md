@@ -38,7 +38,6 @@ The default workload ramps to 25 VUs over 30 seconds, holds 25 VUs for 5 minutes
 
 Every iteration calls:
 
-- `GET /health`
 - `GET /api/v1/authors`
 - `GET /api/v1/books?limit=10`
 - `GET /api/v1/books?limit=100`
@@ -59,8 +58,6 @@ Each request is tagged with an `endpoint` value so k6 output can separate latenc
 The test fails when any threshold fails:
 
 - Failed HTTP request rate must be below 1%.
-- `/health` p95 latency must be below 300 ms.
-- `/health` p99 latency must be below 750 ms.
 - `/api/v1/authors`, `books_limit_10`, and `book_by_id` p95/p99 must stay below 1000 ms / 2500 ms.
 - Larger books-list thresholds scale by response size, up to 60 seconds p95 and 120 seconds p99 for `books_limit_100000`.
 

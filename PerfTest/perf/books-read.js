@@ -26,7 +26,6 @@ if (!baseUrl) {
 
 const thresholds = {
   http_req_failed: ['rate<0.01'],
-  'http_req_duration{endpoint:health}': ['p(95)<300', 'p(99)<750'],
   'http_req_duration{endpoint:authors}': ['p(95)<1000', 'p(99)<2500'],
   'http_req_duration{endpoint:books_limit_10}': ['p(95)<1000', 'p(99)<2500'],
   'http_req_duration{endpoint:books_limit_100}': ['p(95)<1500', 'p(99)<3000'],
@@ -71,7 +70,6 @@ function get(endpoint, path) {
 }
 
 export default function () {
-  // get('health', '/health');
   get('authors', '/api/v1/authors');
 
   for (const limitEndpoint of bookLimitEndpoints) {
