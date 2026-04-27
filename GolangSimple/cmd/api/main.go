@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,7 @@ type config struct {
 
 type app struct {
 	db          *pgxpool.Pool
+	logger      *slog.Logger
 	serviceName string
 	now         func() time.Time
 }
@@ -110,46 +112,66 @@ type updateBookRequest struct {
 	PublishedYear *int   `json:"published_year"`
 }
 
+type statusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (r *statusRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
 	cfg, err := loadConfig()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		logger.Error("load config failed", "error", err)
+		os.Exit(1)
 	}
 
 	poolConfig, err := pgxpool.ParseConfig(cfg.databaseURL)
 	if err != nil {
-		log.Fatalf("parse database config: %v", err)
+		logger.Error("parse database config failed", "error", err)
+		os.Exit(1)
 	}
 	poolConfig.MaxConns = cfg.maxConnections
 	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		logger.Error("connect database failed", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	startupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := pool.Ping(startupCtx); err != nil {
-		log.Fatalf("ping database: %v", err)
+		logger.Error("database ping failed", "error", err)
+		os.Exit(1)
 	}
+
+	logger.Info("database connection ready", "max_connections", cfg.maxConnections)
 
 	server := &http.Server{
 		Addr:              cfg.httpAddress,
-		Handler:           newApp(pool, cfg.serviceName).routes(),
+		Handler:           newApp(pool, logger, cfg.serviceName).routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("listening on %s", cfg.httpAddress)
+	logger.Info("service starting", "service", cfg.serviceName, "address", cfg.httpAddress)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server failed: %v", err)
+		logger.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }
 
-func newApp(db *pgxpool.Pool, serviceName string) *app {
+func newApp(db *pgxpool.Pool, logger *slog.Logger, serviceName string) *app {
 	return &app{
 		db:          db,
+		logger:      logger,
 		serviceName: serviceName,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -175,17 +197,46 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("PUT /api/v1/books/{id}", a.updateBook)
 	mux.HandleFunc("DELETE /api/v1/books/{id}", a.deleteBook)
 
-	return recoverJSON(mux)
+	return requestLogging(a.logger, recoverJSON(a.logger, mux))
 }
 
-func recoverJSON(next http.Handler) http.Handler {
+func recoverJSON(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
+				logger.Error("request panicked",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"query", r.URL.RawQuery,
+					"remote_addr", r.RemoteAddr,
+					"panic", recovered,
+					"stack", string(debug.Stack()),
+				)
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			}
 		}()
 		next.ServeHTTP(w, r)
+	})
+}
+
+func requestLogging(logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		recorder := &statusRecorder{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
+
+		next.ServeHTTP(recorder, r)
+
+		logger.Info("request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"query", r.URL.RawQuery,
+			"status", recorder.statusCode,
+			"duration_ms", time.Since(started).Milliseconds(),
+			"remote_addr", r.RemoteAddr,
+		)
 	})
 }
 
@@ -204,6 +255,7 @@ func (a *app) health(w http.ResponseWriter, r *http.Request) {
 
 	statusCode := http.StatusOK
 	if err := a.db.Ping(ctx); err != nil {
+		a.logger.Warn("health check database ping failed", "error", err)
 		statusCode = http.StatusServiceUnavailable
 		response.Status = healthStatusDegraded
 		response.Checks["database"] = componentHealthResponse{
@@ -218,13 +270,13 @@ func (a *app) health(w http.ResponseWriter, r *http.Request) {
 func (a *app) createAuthor(w http.ResponseWriter, r *http.Request) {
 	var req createAuthorRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, validationError("invalid request body"))
+		a.writeError(w, r, validationError("invalid request body"), "create author decode json")
 		return
 	}
 
 	name, bio, err := validateAuthorInput(req.Name, req.Bio)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "create author validate input")
 		return
 	}
 
@@ -242,7 +294,7 @@ func (a *app) createAuthor(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5)
 	`, response.ID, response.Name, response.Bio, response.CreatedAt, response.UpdatedAt)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "create author insert")
 		return
 	}
 
@@ -256,7 +308,7 @@ func (a *app) listAuthors(w http.ResponseWriter, r *http.Request) {
 		ORDER BY name ASC, created_at ASC
 	`)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list authors query")
 		return
 	}
 	defer rows.Close()
@@ -265,13 +317,13 @@ func (a *app) listAuthors(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var author authorResponse
 		if err := rows.Scan(&author.ID, &author.Name, &author.Bio, &author.CreatedAt, &author.UpdatedAt); err != nil {
-			writeError(w, err)
+			a.writeError(w, r, err, "list authors scan")
 			return
 		}
 		authors = append(authors, author)
 	}
 	if err := rows.Err(); err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list authors iterate")
 		return
 	}
 
@@ -281,7 +333,7 @@ func (a *app) listAuthors(w http.ResponseWriter, r *http.Request) {
 func (a *app) getAuthor(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "get author parse id")
 		return
 	}
 
@@ -292,11 +344,11 @@ func (a *app) getAuthor(w http.ResponseWriter, r *http.Request) {
 		WHERE id = $1
 	`, id).Scan(&author.ID, &author.Name, &author.Bio, &author.CreatedAt, &author.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "get author not found")
 		return
 	}
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "get author query")
 		return
 	}
 
@@ -306,19 +358,19 @@ func (a *app) getAuthor(w http.ResponseWriter, r *http.Request) {
 func (a *app) updateAuthor(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "update author parse id")
 		return
 	}
 
 	var req updateAuthorRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, validationError("invalid request body"))
+		a.writeError(w, r, validationError("invalid request body"), "update author decode json")
 		return
 	}
 
 	name, bio, err := validateAuthorInput(req.Name, req.Bio)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "update author validate input")
 		return
 	}
 
@@ -337,11 +389,11 @@ func (a *app) updateAuthor(w http.ResponseWriter, r *http.Request) {
 		RETURNING created_at, updated_at
 	`, id, response.Name, response.Bio, response.UpdatedAt).Scan(&response.CreatedAt, &response.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "update author not found")
 		return
 	}
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "update author query")
 		return
 	}
 
@@ -351,17 +403,17 @@ func (a *app) updateAuthor(w http.ResponseWriter, r *http.Request) {
 func (a *app) deleteAuthor(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "delete author parse id")
 		return
 	}
 
 	tag, err := a.db.Exec(r.Context(), `DELETE FROM authors WHERE id = $1`, id)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "delete author query")
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "delete author not found")
 		return
 	}
 
@@ -371,13 +423,13 @@ func (a *app) deleteAuthor(w http.ResponseWriter, r *http.Request) {
 func (a *app) listAuthorBooks(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list author books parse id")
 		return
 	}
 
 	limit, err := parseLimit(r)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list author books parse limit")
 		return
 	}
 
@@ -389,18 +441,18 @@ func (a *app) listAuthorBooks(w http.ResponseWriter, r *http.Request) {
 		LIMIT $2
 	`, id, limit)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list author books query")
 		return
 	}
 
 	if len(books) == 0 {
 		exists, err := a.authorExists(r.Context(), id)
 		if err != nil {
-			writeError(w, err)
+			a.writeError(w, r, err, "list author books author exists")
 			return
 		}
 		if !exists {
-			writeError(w, errNotFound)
+			a.writeError(w, r, errNotFound, "list author books author missing")
 			return
 		}
 	}
@@ -411,13 +463,13 @@ func (a *app) listAuthorBooks(w http.ResponseWriter, r *http.Request) {
 func (a *app) createBook(w http.ResponseWriter, r *http.Request) {
 	var req createBookRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, validationError("invalid request body"))
+		a.writeError(w, r, validationError("invalid request body"), "create book decode json")
 		return
 	}
 
 	authorID, title, isbn, publishedYear, err := validateBookInput(req.AuthorID, req.Title, req.ISBN, req.PublishedYear)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "create book validate input")
 		return
 	}
 
@@ -437,7 +489,7 @@ func (a *app) createBook(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, response.ID, authorID, response.Title, response.ISBN, response.PublishedYear, response.CreatedAt, response.UpdatedAt)
 	if err != nil {
-		writeError(w, normalizeWriteError(err))
+		a.writeError(w, r, normalizeWriteError(err), "create book insert")
 		return
 	}
 
@@ -447,7 +499,7 @@ func (a *app) createBook(w http.ResponseWriter, r *http.Request) {
 func (a *app) listBooks(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseLimit(r)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list books parse limit")
 		return
 	}
 
@@ -460,7 +512,7 @@ func (a *app) listBooks(w http.ResponseWriter, r *http.Request) {
 			LIMIT $1
 		`, limit)
 		if err != nil {
-			writeError(w, err)
+			a.writeError(w, r, err, "list books query")
 			return
 		}
 		writeJSON(w, http.StatusOK, books)
@@ -469,7 +521,7 @@ func (a *app) listBooks(w http.ResponseWriter, r *http.Request) {
 
 	authorID, err := parseID(authorIDValue, "invalid author id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list books parse author id")
 		return
 	}
 
@@ -481,7 +533,7 @@ func (a *app) listBooks(w http.ResponseWriter, r *http.Request) {
 		LIMIT $2
 	`, authorID, limit)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "list books by author query")
 		return
 	}
 
@@ -491,7 +543,7 @@ func (a *app) listBooks(w http.ResponseWriter, r *http.Request) {
 func (a *app) getBook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "get book parse id")
 		return
 	}
 
@@ -501,11 +553,11 @@ func (a *app) getBook(w http.ResponseWriter, r *http.Request) {
 		WHERE id = $1
 	`, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "get book not found")
 		return
 	}
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "get book query")
 		return
 	}
 
@@ -515,19 +567,19 @@ func (a *app) getBook(w http.ResponseWriter, r *http.Request) {
 func (a *app) updateBook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "update book parse id")
 		return
 	}
 
 	var req updateBookRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, validationError("invalid request body"))
+		a.writeError(w, r, validationError("invalid request body"), "update book decode json")
 		return
 	}
 
 	authorID, title, isbn, publishedYear, err := validateBookInput(req.AuthorID, req.Title, req.ISBN, req.PublishedYear)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "update book validate input")
 		return
 	}
 
@@ -548,11 +600,11 @@ func (a *app) updateBook(w http.ResponseWriter, r *http.Request) {
 	`, id, authorID, response.Title, response.ISBN, response.PublishedYear, response.UpdatedAt).
 		Scan(&response.CreatedAt, &response.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "update book not found")
 		return
 	}
 	if err != nil {
-		writeError(w, normalizeWriteError(err))
+		a.writeError(w, r, normalizeWriteError(err), "update book query")
 		return
 	}
 
@@ -562,17 +614,17 @@ func (a *app) updateBook(w http.ResponseWriter, r *http.Request) {
 func (a *app) deleteBook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r.PathValue("id"), "invalid id")
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "delete book parse id")
 		return
 	}
 
 	tag, err := a.db.Exec(r.Context(), `DELETE FROM books WHERE id = $1`, id)
 	if err != nil {
-		writeError(w, err)
+		a.writeError(w, r, err, "delete book query")
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		writeError(w, errNotFound)
+		a.writeError(w, r, errNotFound, "delete book not found")
 		return
 	}
 
@@ -765,13 +817,23 @@ func decodeJSON(r *http.Request, dst any) error {
 	return nil
 }
 
-func writeError(w http.ResponseWriter, err error) {
+func (a *app) writeError(w http.ResponseWriter, r *http.Request, err error, operation string) {
+	attrs := []any{
+		"operation", operation,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"query", r.URL.RawQuery,
+	}
+
 	switch {
 	case errors.Is(err, errNotFound):
+		a.logger.Info("request returned not found", append(attrs, "error", err.Error(), "status", http.StatusNotFound)...)
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "resource not found"})
 	case errors.Is(err, errValidation):
+		a.logger.Info("request returned validation error", append(attrs, "error", err.Error(), "status", http.StatusBadRequest)...)
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 	default:
+		a.logger.Error("request returned internal error", append(attrs, "error", err.Error(), "status", http.StatusInternalServerError)...)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	}
 }

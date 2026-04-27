@@ -85,6 +85,14 @@ Push to Azure Container Registry:
 
 The script pushes the built image with a timestamp tag and `latest`.
 
+VM deployment:
+
+```powershell
+.\scripts\deploy.ps1 -VmIp <vm-public-ip>
+```
+
+The deploy script runs the SQL migrations first and then rolls out the VM stack under `/opt/books-service`.
+
 ## Secrets
 
 Real connection strings and passwords belong in `.env`.

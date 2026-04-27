@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $VmUser = "azureuser"
-$RemoteDir = "/opt/books-service-golang-simple"
+$RemoteDir = "/opt/books-service"
 $HttpsPort = "443"
 $AcrName = "acrwebbench4sayzpoemqsyo"
 
@@ -75,17 +75,31 @@ function Copy-ToRemote {
 
 Assert-Command "ssh"
 Assert-Command "scp"
+Assert-Command "go"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $EnvFile = Join-Path $RepoRoot ".env"
 $ComposeFile = Join-Path $RepoRoot "compose.vm.yaml"
+$MigrationsScript = Join-Path $RepoRoot "db-migrations\scripts\migrate.ps1"
 $NginxConfigFile = (Resolve-Path (Join-Path $RepoRoot "..\Infra\nginx.vm.conf")).Path
 $Target = "$VmUser@$VmIp"
-$CleanupRemoteDirs = @($RemoteDir, "/opt/books-service", "/opt/authors-books-service") | Select-Object -Unique
+$CleanupRemoteDirs = @($RemoteDir, "/opt/books-service-golang-simple", "/opt/authors-books-service") | Select-Object -Unique
 
 Assert-Path $EnvFile
 Assert-Path $ComposeFile
+Assert-Path $MigrationsScript
 Assert-Path $NginxConfigFile
+
+Write-Host "Running database migrations before deployment..."
+& $MigrationsScript up -EnvFile $EnvFile
+if ($LASTEXITCODE -ne 0) {
+    throw "Database migration failed during 'up'."
+}
+
+& $MigrationsScript version -EnvFile $EnvFile
+if ($LASTEXITCODE -ne 0) {
+    throw "Database migration verification failed during 'version'."
+}
 
 foreach ($CleanupRemoteDir in $CleanupRemoteDirs) {
     Invoke-RemoteOptional "if [ -d '$CleanupRemoteDir' ] && [ -f '$CleanupRemoteDir/compose.yaml' ]; then cd '$CleanupRemoteDir' && docker compose down --remove-orphans --volumes; else true; fi" | Out-Null

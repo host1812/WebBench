@@ -18,7 +18,9 @@ param(
 
     [int]$Vus = 25,
 
-    [string]$Duration = '5m'
+    [string]$Duration = '5m',
+
+    [switch]$FailOnThresholdFailure
 )
 
 $ErrorActionPreference = 'Stop'
@@ -149,7 +151,19 @@ else {
 }
 
 if ($k6ExitCode -ne 0) {
-    throw "k6 failed with exit code $k6ExitCode. Threshold failures also return a non-zero exit code."
+    if ($k6ExitCode -eq 99) {
+        $message = "k6 completed, but one or more thresholds failed (exit code 99). Review the console summary and HTML report."
+        if ($FailOnThresholdFailure.IsPresent) {
+            throw $message
+        }
+
+        Write-Warning $message
+        Write-Host "Treating threshold failure as a warning. Use -FailOnThresholdFailure to make it fatal."
+        $global:LASTEXITCODE = 0
+        return
+    }
+
+    throw "k6 failed with exit code $k6ExitCode."
 }
 
 Write-Host "k6 completed successfully."

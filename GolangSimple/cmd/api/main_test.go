@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,7 +45,8 @@ func TestValidateAuthorInputRejectsMissingName(t *testing.T) {
 }
 
 func TestRoutesReturnBadRequestBeforeDatabaseWork(t *testing.T) {
-	server := newApp(nil, "books-service-test").routes()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := newApp(nil, logger, "books-service-test").routes()
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/books?author_id=not-a-uuid", nil)
 	recorder := httptest.NewRecorder()

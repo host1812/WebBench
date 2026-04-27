@@ -14,7 +14,7 @@ Database migrations live in the independent [db-migrations](C:/Projects/WebBench
 The VM only needs:
 
 ```text
-/opt/books-service-golang-simple/
+/opt/books-service/
   .env
   compose.yaml
   nginx.vm.conf
@@ -24,7 +24,7 @@ The VM only needs:
   certbot-webroot/
 ```
 
-The deploy script copies these files for you. It also copies your local `.env` file to `/opt/books-service-golang-simple/.env`. It generates `certs/server.crt` and `certs/server.key` on the VM if they do not already exist, then attempts to replace them with a trusted Let's Encrypt certificate.
+The deploy script first runs the local migration project against the configured database, then copies these files for you. It also copies your local `.env` file to `/opt/books-service/.env`. It generates `certs/server.crt` and `certs/server.key` on the VM if they do not already exist, then attempts to replace them with a trusted Let's Encrypt certificate.
 
 ## Configure `.env`
 
@@ -112,11 +112,13 @@ From your local machine:
 
 The script:
 
-- stops any existing Docker Compose stack in `/opt/books-service-golang-simple`
-- removes and recreates `/opt/books-service-golang-simple`
+- runs `db-migrations/scripts/migrate.ps1 up` against the configured database
+- verifies the migration version after applying changes
+- stops any existing Docker Compose stack in `/opt/books-service`
+- removes and recreates `/opt/books-service`
 - removes the old nginx Let's Encrypt renewal hook, if present
-- copies `.env` as `/opt/books-service-golang-simple/.env`
-- copies `compose.vm.yaml` as `/opt/books-service-golang-simple/compose.yaml`
+- copies `.env` as `/opt/books-service/.env`
+- copies `compose.vm.yaml` as `/opt/books-service/compose.yaml`
 - copies `nginx.vm.conf`
 - creates a self-signed HTTPS certificate if one does not already exist
 - runs `docker compose pull`

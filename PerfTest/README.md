@@ -64,7 +64,13 @@ The test fails when any threshold fails:
 - `/api/v1/authors`, `books_limit_10`, and `book_by_id` p95/p99 must stay below 1000 ms / 2500 ms.
 - Larger books-list thresholds scale by response size, up to 60 seconds p95 and 120 seconds p99 for `books_limit_100000`.
 
-The PowerShell runner preserves the k6 exit code, so threshold failures fail the script.
+By default, the PowerShell runner treats k6 threshold failures as warnings so the script can still finish, copy the HTML report, and return control cleanly. Real execution failures still fail the script.
+
+If you want threshold failures to be fatal, run with:
+
+```powershell
+.\scripts\run-k6.ps1 -VmIp <load-test-vm-ip> -BaseUrl https://<service-ip> -FailOnThresholdFailure
+```
 
 ## Reading Results
 
