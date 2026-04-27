@@ -7,6 +7,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 
@@ -14,16 +15,16 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_authors).post(create_author))
         .route(
-            "/:id",
+            "/{id}",
             get(get_author).put(update_author).delete(delete_author),
         )
 }
 
 #[derive(Debug, Serialize, FromRow)]
 struct Author {
-    id: i64,
+    id: Uuid,
     name: String,
-    bio: Option<String>,
+    bio: String,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
 }
@@ -59,16 +60,18 @@ async fn create_author(
     Json(payload): Json<CreateAuthorRequest>,
 ) -> Result<(StatusCode, Json<Author>), AppError> {
     validate_required_text("name", &payload.name)?;
+    let id = Uuid::new_v4();
 
     let author = sqlx::query_as::<_, Author>(
         r#"
-        INSERT INTO authors (name, bio)
-        VALUES ($1, $2)
+        INSERT INTO authors (id, name, bio)
+        VALUES ($1, $2, $3)
         RETURNING id, name, bio, created_at, updated_at
         "#,
     )
+    .bind(id)
     .bind(payload.name.trim())
-    .bind(payload.bio)
+    .bind(payload.bio.unwrap_or_default())
     .fetch_one(&state.pool)
     .await?;
 
@@ -77,7 +80,7 @@ async fn create_author(
 
 async fn get_author(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<Author>, AppError> {
     let author = sqlx::query_as::<_, Author>(
         r#"
@@ -95,7 +98,7 @@ async fn get_author(
 
 async fn update_author(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
     Json(payload): Json<UpdateAuthorRequest>,
 ) -> Result<Json<Author>, AppError> {
     validate_required_text("name", &payload.name)?;
@@ -110,7 +113,7 @@ async fn update_author(
     )
     .bind(id)
     .bind(payload.name.trim())
-    .bind(payload.bio)
+    .bind(payload.bio.unwrap_or_default())
     .fetch_one(&state.pool)
     .await?;
 
@@ -119,7 +122,7 @@ async fn update_author(
 
 async fn delete_author(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     let result = sqlx::query(
         r#"

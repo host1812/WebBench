@@ -149,9 +149,8 @@ Invoke-Remote "az login --identity"
 Invoke-Remote "az acr login --name '$AcrName'"
 
 Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env pull"
-Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env up -d postgres"
 Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env run --rm migrate"
-Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env up -d app"
+Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env up -d api"
 Invoke-Remote "cd '$RemoteDir' && docker compose --env-file .env ps"
 
 Write-Host "Deployment completed."

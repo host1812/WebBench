@@ -7,6 +7,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 
@@ -16,15 +17,15 @@ const MAX_BOOK_LIMIT: u32 = 100_000;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_books).post(create_book))
-        .route("/:id", get(get_book).put(update_book).delete(delete_book))
+        .route("/{id}", get(get_book).put(update_book).delete(delete_book))
 }
 
 #[derive(Debug, Serialize, FromRow)]
 struct Book {
-    id: i64,
-    author_id: i64,
+    id: Uuid,
+    author_id: Uuid,
     title: String,
-    description: Option<String>,
+    isbn: String,
     published_year: Option<i32>,
     created_at: OffsetDateTime,
     updated_at: OffsetDateTime,
@@ -32,17 +33,17 @@ struct Book {
 
 #[derive(Debug, Deserialize)]
 struct CreateBookRequest {
-    author_id: i64,
+    author_id: Uuid,
     title: String,
-    description: Option<String>,
+    isbn: Option<String>,
     published_year: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 struct UpdateBookRequest {
-    author_id: i64,
+    author_id: Uuid,
     title: String,
-    description: Option<String>,
+    isbn: Option<String>,
     published_year: Option<i32>,
 }
 
@@ -73,7 +74,7 @@ async fn list_books(
 
     let books = sqlx::query_as::<_, Book>(
         r#"
-        SELECT id, author_id, title, description, published_year, created_at, updated_at
+        SELECT id, author_id, title, isbn, published_year, created_at, updated_at
         FROM books
         ORDER BY id
         LIMIT $1
@@ -91,17 +92,19 @@ async fn create_book(
     Json(payload): Json<CreateBookRequest>,
 ) -> Result<(StatusCode, Json<Book>), AppError> {
     validate_required_text("title", &payload.title)?;
+    let id = Uuid::new_v4();
 
     let book = sqlx::query_as::<_, Book>(
         r#"
-        INSERT INTO books (author_id, title, description, published_year)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, author_id, title, description, published_year, created_at, updated_at
+        INSERT INTO books (id, author_id, title, isbn, published_year)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, author_id, title, isbn, published_year, created_at, updated_at
         "#,
     )
+    .bind(id)
     .bind(payload.author_id)
     .bind(payload.title.trim())
-    .bind(payload.description)
+    .bind(payload.isbn.unwrap_or_default())
     .bind(payload.published_year)
     .fetch_one(&state.pool)
     .await?;
@@ -111,11 +114,11 @@ async fn create_book(
 
 async fn get_book(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<Book>, AppError> {
     let book = sqlx::query_as::<_, Book>(
         r#"
-        SELECT id, author_id, title, description, published_year, created_at, updated_at
+        SELECT id, author_id, title, isbn, published_year, created_at, updated_at
         FROM books
         WHERE id = $1
         "#,
@@ -129,7 +132,7 @@ async fn get_book(
 
 async fn update_book(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
     Json(payload): Json<UpdateBookRequest>,
 ) -> Result<Json<Book>, AppError> {
     validate_required_text("title", &payload.title)?;
@@ -137,15 +140,15 @@ async fn update_book(
     let book = sqlx::query_as::<_, Book>(
         r#"
         UPDATE books
-        SET author_id = $2, title = $3, description = $4, published_year = $5
+        SET author_id = $2, title = $3, isbn = $4, published_year = $5
         WHERE id = $1
-        RETURNING id, author_id, title, description, published_year, created_at, updated_at
+        RETURNING id, author_id, title, isbn, published_year, created_at, updated_at
         "#,
     )
     .bind(id)
     .bind(payload.author_id)
     .bind(payload.title.trim())
-    .bind(payload.description)
+    .bind(payload.isbn.unwrap_or_default())
     .bind(payload.published_year)
     .fetch_one(&state.pool)
     .await?;
@@ -155,7 +158,7 @@ async fn update_book(
 
 async fn delete_book(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     let result = sqlx::query(
         r#"

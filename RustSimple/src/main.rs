@@ -23,6 +23,7 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    install_crypto_provider();
     init_tracing();
 
     let cli = Cli::parse();
@@ -32,6 +33,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Serve => serve(config).await,
         Command::Migrate => migrate(config).await,
     }
+}
+
+fn install_crypto_provider() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 
 fn init_tracing() {
