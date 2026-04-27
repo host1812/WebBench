@@ -1,0 +1,74 @@
+using AuthorsBooks.Domain.Common;
+
+namespace AuthorsBooks.Domain.Books;
+
+public sealed class Book
+{
+    private Book()
+    {
+    }
+
+    internal Book(Guid id, Guid authorId, string title, int? publicationYear, string? isbn, DateTimeOffset utcNow)
+    {
+        Id = id;
+        AuthorId = authorId;
+        Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
+        PublicationYear = Guard.AgainstOutOfRange(publicationYear, 1, 9999, nameof(publicationYear));
+        Isbn = NormalizeIsbn(isbn);
+        CreatedAtUtc = utcNow;
+        UpdatedAtUtc = utcNow;
+    }
+
+    private Book(
+        Guid id,
+        Guid authorId,
+        string title,
+        int? publicationYear,
+        string? isbn,
+        DateTimeOffset createdAtUtc,
+        DateTimeOffset updatedAtUtc)
+    {
+        Id = id;
+        AuthorId = authorId;
+        Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
+        PublicationYear = Guard.AgainstOutOfRange(publicationYear, 1, 9999, nameof(publicationYear));
+        Isbn = NormalizeIsbn(isbn);
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid AuthorId { get; private set; }
+
+    public string Title { get; private set; } = string.Empty;
+
+    public int? PublicationYear { get; private set; }
+
+    public string Isbn { get; private set; } = string.Empty;
+
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+
+    public DateTimeOffset UpdatedAtUtc { get; private set; }
+
+    public static Book Rehydrate(
+        Guid id,
+        Guid authorId,
+        string title,
+        int? publicationYear,
+        string? isbn,
+        DateTimeOffset createdAtUtc,
+        DateTimeOffset updatedAtUtc) =>
+        new(id, authorId, title, publicationYear, isbn, createdAtUtc, updatedAtUtc);
+
+    internal void Update(string title, int? publicationYear, string? isbn, DateTimeOffset utcNow)
+    {
+        Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
+        PublicationYear = Guard.AgainstOutOfRange(publicationYear, 1, 9999, nameof(publicationYear));
+        Isbn = NormalizeIsbn(isbn);
+        UpdatedAtUtc = utcNow;
+    }
+
+    private static string NormalizeIsbn(string? isbn) =>
+        Guard.NormalizeOptional(isbn);
+}

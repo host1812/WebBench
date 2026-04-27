@@ -1,0 +1,39 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    env_file:
+      - .env
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: "${ConnectionStrings__ApplicationInsights:?ConnectionStrings__ApplicationInsights is required}"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    restart: unless-stopped
+
+  api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/${IMAGE_NAME:?IMAGE_NAME is required}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Database__MaxConnections: "${Database__MaxConnections:-10}"
+      Telemetry__Enabled: "${Telemetry__Enabled:-true}"
+      Telemetry__OtlpEndpoint: "${Telemetry__OtlpEndpoint:-http://otel-collector:4318/v1/traces}"
+    expose:
+      - "8080"
+    depends_on:
+      - otel-collector
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.vm.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./certbot-webroot:/var/www/certbot:ro

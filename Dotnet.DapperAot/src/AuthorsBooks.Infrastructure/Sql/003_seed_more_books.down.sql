@@ -1,0 +1,3 @@
+DELETE FROM books
+WHERE isbn >= '9780000010001'
+  AND isbn <= '9780000100000';
