@@ -33,13 +33,13 @@ $childVerboseArgument = if ($VerbosePreference -eq "Continue") { " -Verbose" } e
 $projectNames = @(
     "Dotnet"
     "Dotnet.Aot"
-    # "Dotnet.Dapper"
-    # "Dotnet.DapperAot"
-    # "Dotnet.Simple"
-    # "Golang"
-    # "GolangSimple"
-    # "Rust"
-    # "RustSimple"
+    "Dotnet.Dapper"
+    "Dotnet.DapperAot"
+    "Dotnet.Simple"
+    "Golang"
+    "GolangSimple"
+    "Rust"
+    "RustSimple"
 )
 
 if (-not (Test-Path -LiteralPath $perfTestRoot -PathType Container)) {
@@ -322,7 +322,7 @@ function Move-NewPerfReports {
 
     $movedFiles = New-Object System.Collections.Generic.List[string]
     $newFiles = Get-ChildItem -LiteralPath $SourceRoot -File |
-        Where-Object { -not $ExistingFiles.ContainsKey($_.FullName) }
+    Where-Object { -not $ExistingFiles.ContainsKey($_.FullName) }
 
     foreach ($file in $newFiles) {
         $destinationPath = Join-Path $DestinationDirectory $file.Name
@@ -377,19 +377,19 @@ function New-DurationStats {
     )
 
     return [ordered]@{
-        avg = $Avg
+        avg   = $Avg
         avgMs = Convert-DurationToMilliseconds -Value $Avg
-        min = $Min
+        min   = $Min
         minMs = Convert-DurationToMilliseconds -Value $Min
-        med = $Med
+        med   = $Med
         medMs = Convert-DurationToMilliseconds -Value $Med
-        p90 = $P90
+        p90   = $P90
         p90Ms = Convert-DurationToMilliseconds -Value $P90
-        p95 = $P95
+        p95   = $P95
         p95Ms = Convert-DurationToMilliseconds -Value $P95
-        p99 = $P99
+        p99   = $P99
         p99Ms = Convert-DurationToMilliseconds -Value $P99
-        max = $Max
+        max   = $Max
         maxMs = Convert-DurationToMilliseconds -Value $Max
     }
 }
@@ -448,8 +448,8 @@ function Parse-K6PerfLog {
 
     $result = [ordered]@{
         hasResults = $false
-        overall = [ordered]@{}
-        endpoints = [ordered]@{}
+        overall    = [ordered]@{}
+        endpoints  = [ordered]@{}
         thresholds = @()
     }
 
@@ -501,12 +501,12 @@ function Parse-K6PerfLog {
 
                 if ($null -ne $currentThresholdMetric -and $trimmedLine -match ".*'(?<expression>[^']+)'\s+(?<actualName>[^=]+)=(?<actual>\S+)") {
                     $result.thresholds += [ordered]@{
-                        metric = $currentThresholdMetric
-                        endpoint = $currentThresholdEndpoint
+                        metric     = $currentThresholdMetric
+                        endpoint   = $currentThresholdEndpoint
                         expression = $matches.expression.Trim()
                         actualName = $matches.actualName.Trim()
-                        actual = $matches.actual.Trim()
-                        passed = Test-ThresholdExpression -Expression $matches.expression.Trim() -ActualValue $matches.actual.Trim()
+                        actual     = $matches.actual.Trim()
+                        passed     = Test-ThresholdExpression -Expression $matches.expression.Trim() -ActualValue $matches.actual.Trim()
                     }
                     continue
                 }
@@ -527,7 +527,7 @@ function Parse-K6PerfLog {
 
                 if ($trimmedLine -match "^http_req_failed.*?:\s+(?<rate>\S+)") {
                     $result.overall.httpReqFailed = [ordered]@{
-                        rate = $matches.rate
+                        rate         = $matches.rate
                         rateFraction = Convert-PercentToFraction -Value $matches.rate
                     }
                     $result.hasResults = $true
@@ -536,9 +536,9 @@ function Parse-K6PerfLog {
 
                 if ($trimmedLine -match "^http_reqs.*?:\s+(?<total>\d+)\s+(?<rate>\S+)$") {
                     $result.overall.httpReqs = [ordered]@{
-                        total = [int]$matches.total
-                        totalDisplay = $matches.total
-                        rate = $matches.rate
+                        total         = [int]$matches.total
+                        totalDisplay  = $matches.total
+                        rate          = $matches.rate
                         ratePerSecond = Convert-PerSecondValue -Value $matches.rate
                     }
                     $result.hasResults = $true
@@ -553,9 +553,9 @@ function Parse-K6PerfLog {
 
                 if ($trimmedLine -match "^iterations.*?:\s+(?<total>\d+)\s+(?<rate>\S+)$") {
                     $result.overall.iterations = [ordered]@{
-                        total = [int]$matches.total
-                        totalDisplay = $matches.total
-                        rate = $matches.rate
+                        total         = [int]$matches.total
+                        totalDisplay  = $matches.total
+                        rate          = $matches.rate
                         ratePerSecond = Convert-PerSecondValue -Value $matches.rate
                     }
                     continue
@@ -565,7 +565,7 @@ function Parse-K6PerfLog {
                 if ($trimmedLine -match "^data_received.*?:\s+(?<total>\d+(?:\.\d+)?\s+[A-Za-z]+)\s+(?<rate>\d+(?:\.\d+)?\s+[A-Za-z]+/s)$") {
                     $result.overall.dataReceived = [ordered]@{
                         total = $matches.total
-                        rate = $matches.rate
+                        rate  = $matches.rate
                     }
                     continue
                 }
@@ -573,7 +573,7 @@ function Parse-K6PerfLog {
                 if ($trimmedLine -match "^data_sent.*?:\s+(?<total>\d+(?:\.\d+)?\s+[A-Za-z]+)\s+(?<rate>\d+(?:\.\d+)?\s+[A-Za-z]+/s)$") {
                     $result.overall.dataSent = [ordered]@{
                         total = $matches.total
-                        rate = $matches.rate
+                        rate  = $matches.rate
                     }
                     continue
                 }
@@ -645,10 +645,7 @@ function New-BarChartHtml {
         [string]$Title,
 
         [Parameter(Mandatory = $true)]
-        [System.Collections.IEnumerable]$Items,
-
-        [AllowNull()]
-        [string]$DirectionHint
+        [System.Collections.IEnumerable]$Items
     )
 
     $itemList = @($Items | Where-Object { $null -ne $_.Value })
@@ -664,9 +661,6 @@ function New-BarChartHtml {
     $builder = New-Object System.Text.StringBuilder
     [void]$builder.AppendLine("<section class='panel'>")
     [void]$builder.AppendLine(("  <h3>{0}</h3>" -f (ConvertTo-HtmlText -Value $Title)))
-    if (-not [string]::IsNullOrWhiteSpace($DirectionHint)) {
-        [void]$builder.AppendLine(("  <div class='small'>{0}</div>" -f (ConvertTo-HtmlText -Value $DirectionHint)))
-    }
     [void]$builder.AppendLine("  <div class='bar-chart'>")
 
     foreach ($item in ($itemList | Sort-Object -Property Value -Descending)) {
@@ -808,14 +802,14 @@ function New-RunReportHtml {
 
     $overviewChartHtml = @()
 
-    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p95" -DirectionHint "smaller better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p95 - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqDuration"
             if ($null -ne $stats -and $null -ne $stats.p95Ms) {
                 [pscustomobject]@{
-                    Label = $project.project
-                    Value = $stats.p95Ms
-                    Display = $stats.p95
+                    Label    = $project.project
+                    Value    = $stats.p95Ms
+                    Display  = $stats.p95
                     CssClass = switch ($project.status) {
                         "passed" { "bar-fill-passed" }
                         "perf_failed" { "bar-fill-warning" }
@@ -826,14 +820,14 @@ function New-RunReportHtml {
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p99" -DirectionHint "smaller better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP p99 - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqDuration"
             if ($null -ne $stats -and $null -ne $stats.p99Ms) {
                 [pscustomobject]@{
-                    Label = $project.project
-                    Value = $stats.p99Ms
-                    Display = $stats.p99
+                    Label    = $project.project
+                    Value    = $stats.p99Ms
+                    Display  = $stats.p99
                     CssClass = switch ($project.status) {
                         "passed" { "bar-fill-passed" }
                         "perf_failed" { "bar-fill-warning" }
@@ -844,14 +838,14 @@ function New-RunReportHtml {
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Failed Request Rate" -DirectionHint "smaller better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Failed Request Rate - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqFailed"
             if ($null -ne $stats -and $null -ne $stats.rateFraction) {
                 [pscustomobject]@{
-                    Label = $project.project
-                    Value = $stats.rateFraction
-                    Display = $stats.rate
+                    Label    = $project.project
+                    Value    = $stats.rateFraction
+                    Display  = $stats.rate
                     CssClass = switch ($project.status) {
                         "passed" { "bar-fill-passed" }
                         "perf_failed" { "bar-fill-warning" }
@@ -862,14 +856,14 @@ function New-RunReportHtml {
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "HTTP Requests per Second" -DirectionHint "higher better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "HTTP Requests per Second - ⬆️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqs"
             if ($null -ne $stats -and $null -ne $stats.ratePerSecond) {
                 [pscustomobject]@{
-                    Label = $project.project
-                    Value = $stats.ratePerSecond
-                    Display = $stats.rate
+                    Label    = $project.project
+                    Value    = $stats.ratePerSecond
+                    Display  = $stats.rate
                     CssClass = switch ($project.status) {
                         "passed" { "bar-fill-passed" }
                         "perf_failed" { "bar-fill-warning" }
@@ -880,14 +874,14 @@ function New-RunReportHtml {
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Iteration Duration p95" -DirectionHint "smaller better" -Items @(
+    $overviewChartHtml += New-BarChartHtml -Title "Iteration Duration p95 - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "iterationDuration"
             if ($null -ne $stats -and $null -ne $stats.p95Ms) {
                 [pscustomobject]@{
-                    Label = $project.project
-                    Value = $stats.p95Ms
-                    Display = $stats.p95
+                    Label    = $project.project
+                    Value    = $stats.p95Ms
+                    Display  = $stats.p95
                     CssClass = switch ($project.status) {
                         "passed" { "bar-fill-passed" }
                         "perf_failed" { "bar-fill-warning" }
@@ -913,14 +907,14 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("      <h2>Per-Endpoint Charts</h2>")
 
     foreach ($endpointName in ($endpointNames | Sort-Object)) {
-        $endpointP95Chart = New-BarChartHtml -Title ("{0} p95" -f $endpointName) -DirectionHint "smaller better" -Items @(
+        $endpointP95Chart = New-BarChartHtml -Title ("{0} p95 - ⬇️ better" -f $endpointName) -Items @(
             foreach ($project in $projects) {
                 $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "endpoints") -Name $endpointName
                 if ($null -ne $stats -and $null -ne $stats.p95Ms) {
                     [pscustomobject]@{
-                        Label = $project.project
-                        Value = $stats.p95Ms
-                        Display = $stats.p95
+                        Label    = $project.project
+                        Value    = $stats.p95Ms
+                        Display  = $stats.p95
                         CssClass = switch ($project.status) {
                             "passed" { "bar-fill-passed" }
                             "perf_failed" { "bar-fill-warning" }
@@ -931,14 +925,14 @@ function New-RunReportHtml {
             }
         )
 
-        $endpointP99Chart = New-BarChartHtml -Title ("{0} p99" -f $endpointName) -DirectionHint "smaller better" -Items @(
+        $endpointP99Chart = New-BarChartHtml -Title ("{0} p99 - ⬇️ better" -f $endpointName) -Items @(
             foreach ($project in $projects) {
                 $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "endpoints") -Name $endpointName
                 if ($null -ne $stats -and $null -ne $stats.p99Ms) {
                     [pscustomobject]@{
-                        Label = $project.project
-                        Value = $stats.p99Ms
-                        Display = $stats.p99
+                        Label    = $project.project
+                        Value    = $stats.p99Ms
+                        Display  = $stats.p99
                         CssClass = switch ($project.status) {
                             "passed" { "bar-fill-passed" }
                             "perf_failed" { "bar-fill-warning" }
@@ -1078,35 +1072,35 @@ for ($index = 0; $index -lt $projects.Count; $index++) {
     $perfMetrics = Parse-K6PerfLog -LogPath $perfLog
 
     $artifacts = [ordered]@{
-        buildLog = "./{0}/build.log" -f $project.Name
-        deployLog = "./{0}/deploy.log" -f $project.Name
-        perfLog = "./{0}/perf.log" -f $project.Name
-        metadataJson = "./{0}/metadata.json" -f $project.Name
+        buildLog        = "./{0}/build.log" -f $project.Name
+        deployLog       = "./{0}/deploy.log" -f $project.Name
+        perfLog         = "./{0}/perf.log" -f $project.Name
+        metadataJson    = "./{0}/metadata.json" -f $project.Name
         k6DashboardHtml = if ($null -ne $k6ReportFile) { "./{0}/{1}" -f $project.Name, $k6ReportFile.Name } else { $null }
     }
 
     $metadata = [ordered]@{
-        project = $project.Name
-        projectDirectory = $project.FullName
-        runFolderName = $runFolderName
-        startedAtUtc = $startedAt.ToUniversalTime().ToString("o")
-        finishedAtUtc = $finishedAt.ToUniversalTime().ToString("o")
-        status = $status
-        buildCommand = $buildCommand
-        buildExitCode = $buildExitCode
-        deployCommand = $deployCommand
-        deployExitCode = $deployExitCode
-        perfCommand = $perfCommand
-        perfExitCode = $perfExitCode
-        serviceVmIp = $ServiceVmIp
-        loadTestVmIp = $LoadTestVmIp
-        baseUrl = $BaseUrl
-        vus = $Vus
-        duration = $Duration
-        idleDuration = $IdleDuration
+        project             = $project.Name
+        projectDirectory    = $project.FullName
+        runFolderName       = $runFolderName
+        startedAtUtc        = $startedAt.ToUniversalTime().ToString("o")
+        finishedAtUtc       = $finishedAt.ToUniversalTime().ToString("o")
+        status              = $status
+        buildCommand        = $buildCommand
+        buildExitCode       = $buildExitCode
+        deployCommand       = $deployCommand
+        deployExitCode      = $deployExitCode
+        perfCommand         = $perfCommand
+        perfExitCode        = $perfExitCode
+        serviceVmIp         = $ServiceVmIp
+        loadTestVmIp        = $LoadTestVmIp
+        baseUrl             = $BaseUrl
+        vus                 = $Vus
+        duration            = $Duration
+        idleDuration        = $IdleDuration
         idleDurationSeconds = $idleDurationSeconds
-        artifacts = $artifacts
-        perfMetrics = $perfMetrics
+        artifacts           = $artifacts
+        perfMetrics         = $perfMetrics
     }
 
     $metadata | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $metadataPath
@@ -1130,26 +1124,26 @@ Write-Verbose ("Summary path: {0}" -f $summaryPath)
 Write-Verbose ("Aggregate report path: {0}" -f $htmlPath)
 
 $runSummary = [ordered]@{
-    runFolderName = $runFolderName
-    runDirectory = $runDirectory
-    startedAtUtc = $runStartedAt.ToUniversalTime().ToString("o")
-    finishedAtUtc = $runFinishedAt.ToUniversalTime().ToString("o")
+    runFolderName  = $runFolderName
+    runDirectory   = $runDirectory
+    startedAtUtc   = $runStartedAt.ToUniversalTime().ToString("o")
+    finishedAtUtc  = $runFinishedAt.ToUniversalTime().ToString("o")
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-    settings = [ordered]@{
-        serviceVmIp = $ServiceVmIp
-        loadTestVmIp = $LoadTestVmIp
-        baseUrl = $BaseUrl
-        vus = $Vus
-        duration = $Duration
-        idleDuration = $IdleDuration
+    settings       = [ordered]@{
+        serviceVmIp         = $ServiceVmIp
+        loadTestVmIp        = $LoadTestVmIp
+        baseUrl             = $BaseUrl
+        vus                 = $Vus
+        duration            = $Duration
+        idleDuration        = $IdleDuration
         idleDurationSeconds = $idleDurationSeconds
     }
-    commands = [ordered]@{
-        build = $buildCommand
+    commands       = [ordered]@{
+        build  = $buildCommand
         deploy = $deployCommand
-        perf = $perfCommand
+        perf   = $perfCommand
     }
-    projects = $projectResults
+    projects       = $projectResults
 }
 
 Write-Verbose ("Run summary object created for folder '{0}'." -f $runFolderName)
