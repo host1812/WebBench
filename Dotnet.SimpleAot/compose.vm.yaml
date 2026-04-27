@@ -1,0 +1,27 @@
+services:
+  api:
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/${IMAGE_NAME:?IMAGE_NAME is required}:${IMAGE_TAG:-latest}
+    command: ["serve"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      BOOKSVC_HTTP_ADDRESS: "${BOOKSVC_HTTP_ADDRESS:-http://+:8080}"
+      BOOKSVC_DATABASE_CONNECTION_STRING: "${BOOKSVC_DATABASE_CONNECTION_STRING:?BOOKSVC_DATABASE_CONNECTION_STRING is required}"
+      BOOKSVC_DATABASE_MAX_CONNECTIONS: "${BOOKSVC_DATABASE_MAX_CONNECTIONS:-10}"
+      BOOKSVC_SERVICE_NAME: "${BOOKSVC_SERVICE_NAME:-books-service}"
+    expose:
+      - "8080"
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.vm.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./certbot-webroot:/var/www/certbot:ro

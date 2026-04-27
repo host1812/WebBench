@@ -1,0 +1,14 @@
+.env
+.env.*
+artifacts/
+bin/
+obj/
+**/bin/
+**/obj/
+TestResults/
+BenchmarkDotNet.Artifacts/
+.dotnet/
+.nuget/
+.templateengine/
+.vs/
+*.log

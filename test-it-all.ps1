@@ -36,6 +36,7 @@ $projectNames = @(
     "Dotnet.Dapper"
     "Dotnet.DapperAot"
     "Dotnet.Simple"
+    "Dotnet.SimpleAot"
     "Golang"
     "GolangSimple"
     "Rust"
