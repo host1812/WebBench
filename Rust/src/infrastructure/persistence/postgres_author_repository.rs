@@ -88,7 +88,7 @@ impl AuthorQueryRepository for PostgresAuthorRepository {
             r#"
             SELECT id, name, bio, created_at, updated_at
             FROM authors
-            ORDER BY name ASC
+            ORDER BY id ASC
             "#,
         )
         .fetch_all(&self.pool)

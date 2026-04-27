@@ -97,7 +97,7 @@ impl BookQueryRepository for PostgresBookRepository {
             r#"
             SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
-            ORDER BY title ASC
+            ORDER BY id ASC
             LIMIT $1
             "#,
         )
@@ -118,7 +118,7 @@ impl BookQueryRepository for PostgresBookRepository {
             SELECT id, author_id, title, isbn, published_year, created_at, updated_at
             FROM books
             WHERE author_id = $1
-            ORDER BY title ASC
+            ORDER BY id ASC
             LIMIT $2
             "#,
         )
