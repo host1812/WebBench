@@ -6,10 +6,10 @@ param location string
 @description('Resource group name for the PerfTest load-test environment.')
 param resourceGroupName string
 
-@description('Short suffix used in PerfTest resource names.')
+@description('Project name used in PerfTest resource names. Use lowercase letters, numbers, or hyphens.')
 @minLength(3)
-@maxLength(20)
-param resourcePrefix string
+@maxLength(40)
+param projectName string
 
 @description('Linux admin username used for SSH.')
 param adminUsername string
@@ -46,7 +46,7 @@ param imageSku string
 @description('Ubuntu image version.')
 param imageVersion string
 
-var sanitizedPrefix = toLower(replace(resourcePrefix, '_', '-'))
+var sanitizedProjectName = toLower(replace(projectName, '_', '-'))
 var cloudInit = replace(loadTextContent('./scripts/cloud-init-loadtest.yaml'), '__ADMIN_USERNAME__', adminUsername)
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -66,17 +66,17 @@ module loadTestEnvironment 'modules/loadTestEnvironment.bicep' = {
     imageSku: imageSku
     imageVersion: imageVersion
     location: location
-    networkInterfaceName: 'nic-${sanitizedPrefix}'
-    nsgName: 'nsg-${sanitizedPrefix}'
+    networkInterfaceName: 'nic-${sanitizedProjectName}-perf'
+    nsgName: 'nsg-${sanitizedProjectName}-perf'
     osDiskSizeGB: osDiskSizeGB
-    publicIpName: 'pip-${sanitizedPrefix}'
+    publicIpName: 'pip-${sanitizedProjectName}-perf'
     sshPublicKey: sshPublicKey
     subnetAddressPrefix: subnetAddressPrefix
-    subnetName: 'subnet-${sanitizedPrefix}'
-    vmName: 'vm-${sanitizedPrefix}'
+    subnetName: 'subnet-${sanitizedProjectName}-perf'
+    vmName: 'vm-${sanitizedProjectName}-perf'
     vmSize: vmSize
     vnetAddressPrefix: vnetAddressPrefix
-    vnetName: 'vnet-${sanitizedPrefix}'
+    vnetName: 'vnet-${sanitizedProjectName}-perf'
   }
 }
 

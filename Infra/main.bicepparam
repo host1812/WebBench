@@ -1,7 +1,7 @@
 using './main.bicep'
 
 param location = 'northcentralus'
-param resourcePrefix = 'linuxvm'
+param projectName = readEnvironmentVariable('PROJECT_NAME')
 param adminUsername = 'azureuser'
 
 param sshPublicKey = readEnvironmentVariable('SSH_PUBLIC_KEY')
@@ -26,17 +26,12 @@ param imageOffer = '0001-com-ubuntu-server-jammy'
 param imageSku = '22_04-lts-gen2'
 param imageVersion = 'latest'
 
-param containerRegistryNamePrefix = 'acrwebbench'
-param useTenantUniqueContainerRegistryName = true
 param containerRegistrySku = 'Basic'
 param containerRegistryAdminUserEnabled = false
 param containerRegistryPushUserObjectId = '1a8f2341-8fb4-4eb2-a259-b0c12f9955a9'
 
-param postgresqlServerNamePrefix = 'pg-webbench'
-param useTenantUniquePostgresqlServerName = true
 param postgresqlAdministratorLogin = 'pgadminuser'
 param postgresqlAdministratorLoginPassword = readEnvironmentVariable('POSTGRESQL_ADMIN_PASSWORD')
-param postgresqlDatabaseName = 'webbench'
 param postgresqlVersion = '16'
 param postgresqlSkuName = 'Standard_B1ms'
 param postgresqlSkuTier = 'Burstable'
@@ -54,8 +49,6 @@ param postgresqlFirewallRules = [
 param logAnalyticsRetentionInDays = 30
 param logAnalyticsDailyQuotaGb = -1
 
-param monitoringStorageAccountNamePrefix = 'stwebbenchlogs'
-param useTenantUniqueMonitoringStorageAccountName = true
 param monitoringStorageAccountSku = 'Standard_LRS'
 param monitoringStorageBlobDeleteRetentionDays = 30
 

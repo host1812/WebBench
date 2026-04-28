@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{1,38}[A-Za-z0-9]$')]
+    [string] $ProjectName,
     [string] $Subscription = 'b8d7fc1c-6003-4425-baf0-15d8db0e1714',
-    [string] $ResourceGroupName = 'rg-WebBench',
+    [string] $ResourceGroupName,
     [string] $Location = 'northcentralus',
     [string] $TemplateFile = 'main.bicep',
     [string] $ParameterFile = 'main.bicepparam',
-    [string] $PerfTestResourceGroupName = 'rg-PerfTest',
+    [string] $PerfTestResourceGroupName,
     [string] $PerfTestLocation = 'westus3',
     [string] $PerfTestTemplateFile = 'perftest-main.bicep',
     [string] $PerfTestParameterFile = 'perftest-main.bicepparam',
@@ -234,12 +237,33 @@ function Assert-RequiredEnvironmentValue {
     }
 }
 
+function ConvertTo-ResourceNameToken {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Value
+    )
+
+    return $Value.Trim().ToLowerInvariant().Replace('_', '-')
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $templatePath = Join-Path $scriptRoot $TemplateFile
 $parameterPath = Join-Path $scriptRoot $ParameterFile
 $perfTestTemplatePath = Join-Path $scriptRoot $PerfTestTemplateFile
 $perfTestParameterPath = Join-Path $scriptRoot $PerfTestParameterFile
 $environmentPath = Join-Path $scriptRoot '.env'
+$projectNameToken = ConvertTo-ResourceNameToken -Value $ProjectName
+
+if (-not $ResourceGroupName) {
+    $ResourceGroupName = "rg-$projectNameToken-api"
+}
+
+if (-not $PerfTestResourceGroupName) {
+    $PerfTestResourceGroupName = "rg-$projectNameToken-perf"
+}
+
+[Environment]::SetEnvironmentVariable('PROJECT_NAME', $projectNameToken, 'Process')
+[Environment]::SetEnvironmentVariable('PERFTEST_RESOURCE_GROUP_NAME', $PerfTestResourceGroupName, 'Process')
 
 Set-DeploymentProgress -Status 'Loading environment configuration.'
 Import-DotEnv -Path $environmentPath
@@ -299,6 +323,7 @@ if (-not $SkipPerfTest) {
         '--location', $PerfTestLocation,
         '--template-file', $perfTestTemplatePath,
         '--parameters', $perfTestParameterPath,
+        "projectName=$projectNameToken",
         "location=$PerfTestLocation",
         "resourceGroupName=$PerfTestResourceGroupName"
     )
@@ -330,7 +355,8 @@ if ($perfTestPublicIpAddress) {
 $mainCommonArgs = @(
     '--resource-group', $ResourceGroupName,
     '--template-file', $templatePath,
-    '--parameters', $parameterPath
+    '--parameters', $parameterPath,
+    "projectName=$projectNameToken"
 ) + $mainParameterOverrides
 
 if (-not $SkipWhatIf) {

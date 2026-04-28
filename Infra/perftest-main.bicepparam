@@ -1,8 +1,8 @@
 using './perftest-main.bicep'
 
 param location = 'westus3'
-param resourceGroupName = 'rg-PerfTest'
-param resourcePrefix = 'perftest'
+param projectName = readEnvironmentVariable('PROJECT_NAME')
+param resourceGroupName = readEnvironmentVariable('PERFTEST_RESOURCE_GROUP_NAME')
 param adminUsername = 'azureuser'
 param sshPublicKey = readEnvironmentVariable('SSH_PUBLIC_KEY')
 

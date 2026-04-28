@@ -1,10 +1,10 @@
 @description('Azure region for all resources.')
 param location string
 
-@description('Short prefix used in resource names. Use lowercase letters, numbers, or hyphens.')
+@description('Project name used in resource names. Use lowercase letters, numbers, or hyphens.')
 @minLength(3)
-@maxLength(20)
-param resourcePrefix string
+@maxLength(40)
+param projectName string
 
 @description('Linux admin username used for SSH.')
 param adminUsername string
@@ -63,14 +63,6 @@ param imageSku string
 @description('Ubuntu image version.')
 param imageVersion string
 
-@description('Container registry name prefix. ACR names must be globally unique and use only lowercase letters and numbers.')
-@minLength(5)
-@maxLength(37)
-param containerRegistryNamePrefix string
-
-@description('Append a deterministic tenant-scoped suffix to the ACR name prefix.')
-param useTenantUniqueContainerRegistryName bool
-
 @description('Container registry SKU.')
 @allowed([
   'Basic'
@@ -85,23 +77,12 @@ param containerRegistryAdminUserEnabled bool
 @description('User object ID that receives AcrPush on the deployed container registry.')
 param containerRegistryPushUserObjectId string
 
-@description('PostgreSQL Flexible Server name prefix.')
-@minLength(3)
-@maxLength(50)
-param postgresqlServerNamePrefix string
-
-@description('Append a deterministic tenant-scoped suffix to the PostgreSQL server name prefix.')
-param useTenantUniquePostgresqlServerName bool
-
 @description('PostgreSQL administrator login.')
 param postgresqlAdministratorLogin string
 
 @description('PostgreSQL administrator password.')
 @secure()
 param postgresqlAdministratorLoginPassword string
-
-@description('PostgreSQL database name.')
-param postgresqlDatabaseName string
 
 @description('PostgreSQL version.')
 param postgresqlVersion string
@@ -130,14 +111,6 @@ param logAnalyticsRetentionInDays int
 @description('Log Analytics daily ingestion cap in GB. Use -1 for unlimited.')
 param logAnalyticsDailyQuotaGb int
 
-@description('Storage account name prefix for monitoring export data. Use lowercase letters and numbers.')
-@minLength(3)
-@maxLength(18)
-param monitoringStorageAccountNamePrefix string
-
-@description('Append a deterministic tenant-scoped suffix to the monitoring storage account name prefix.')
-param useTenantUniqueMonitoringStorageAccountName bool
-
 @description('Monitoring storage account replication SKU.')
 param monitoringStorageAccountSku string
 
@@ -156,14 +129,20 @@ param logAnalyticsDataExportEnabled bool
 @description('Log Analytics workspace tables exported to the monitoring storage account.')
 param logAnalyticsDataExportTableNames array
 
-var sanitizedPrefix = toLower(replace(resourcePrefix, '_', '-'))
-var acrPrefix = toLower(replace(replace(containerRegistryNamePrefix, '-', ''), '_', ''))
-var containerRegistryName = useTenantUniqueContainerRegistryName ? take('${acrPrefix}${uniqueString(tenant().tenantId)}', 50) : acrPrefix
-var postgresqlPrefix = toLower(replace(postgresqlServerNamePrefix, '_', '-'))
-var postgresqlServerName = useTenantUniquePostgresqlServerName ? take('${postgresqlPrefix}-${uniqueString(tenant().tenantId)}', 63) : postgresqlPrefix
-var monitoringStoragePrefix = toLower(replace(replace(monitoringStorageAccountNamePrefix, '-', ''), '_', ''))
-var monitoringStorageAccountName = useTenantUniqueMonitoringStorageAccountName ? take('${monitoringStoragePrefix}${uniqueString(tenant().tenantId)}', 24) : monitoringStoragePrefix
-var managedIdentityName = '${sanitizedPrefix}-mi'
+var sanitizedProjectName = toLower(replace(projectName, '_', '-'))
+var compactProjectName = toLower(replace(replace(projectName, '-', ''), '_', ''))
+var uniqueNameSuffix = uniqueString(tenant().tenantId)
+var containerRegistryBaseName = take('acr${compactProjectName}registry', 37)
+var postgresqlServerBaseName = take('pg-${sanitizedProjectName}-db', 49)
+var monitoringStorageBaseName = take('st${compactProjectName}monitoring', 11)
+var containerRegistryName = '${containerRegistryBaseName}${uniqueNameSuffix}'
+var postgresqlServerName = '${postgresqlServerBaseName}-${uniqueNameSuffix}'
+var postgresqlDatabaseName = 'db-${sanitizedProjectName}-api'
+var postgresqlFirewallRulesWithNames = [for rule in postgresqlFirewallRules: union(rule, {
+  name: 'fwr-${sanitizedProjectName}-${toLower(replace(rule.name, '_', '-'))}'
+})]
+var monitoringStorageAccountName = '${monitoringStorageBaseName}${uniqueNameSuffix}'
+var managedIdentityName = 'mi-${sanitizedProjectName}-api'
 var managedIdentityNameSeed = resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', managedIdentityName)
 var cloudInit = installDocker ? replace(loadTextContent('./scripts/cloud-init-docker.yaml'), '__ADMIN_USERNAME__', adminUsername) : '#cloud-config\n'
 
@@ -194,11 +173,11 @@ module vnet 'modules/vnet.bicep' = {
     allowedPerfTestHttpsSourceAddressPrefix: allowedPerfTestHttpsSourceAddressPrefix
     allowedSshSourceAddressPrefix: allowedSshSourceAddressPrefix
     location: location
-    nsgName: '${sanitizedPrefix}-nsg'
+    nsgName: 'nsg-${sanitizedProjectName}-api'
     subnetAddressPrefix: subnetAddressPrefix
-    subnetName: '${sanitizedPrefix}-subnet'
+    subnetName: 'subnet-${sanitizedProjectName}-api'
     vnetAddressPrefix: vnetAddressPrefix
-    vnetName: '${sanitizedPrefix}-vnet'
+    vnetName: 'vnet-${sanitizedProjectName}-network'
   }
 }
 
@@ -206,7 +185,7 @@ module publicIp 'modules/publicIp.bicep' = {
   name: 'publicIp'
   params: {
     location: location
-    name: '${sanitizedPrefix}-pip'
+    name: 'pip-${sanitizedProjectName}-public'
   }
 }
 
@@ -214,7 +193,7 @@ module nic 'modules/networkInterface.bicep' = {
   name: 'networkInterface'
   params: {
     location: location
-    name: '${sanitizedPrefix}-nic'
+    name: 'nic-${sanitizedProjectName}-api'
     publicIpId: publicIp.outputs.publicIpId
     subnetId: vnet.outputs.subnetId
   }
@@ -231,7 +210,7 @@ module vm 'modules/virtualMachine.bicep' = {
     imageVersion: imageVersion
     location: location
     managedIdentityId: managedIdentity.outputs.identityId
-    name: '${sanitizedPrefix}-vm'
+    name: 'vm-${sanitizedProjectName}-api'
     networkInterfaceId: nic.outputs.networkInterfaceId
     osDiskSizeGB: osDiskSizeGB
     sshPublicKey: sshPublicKey
@@ -265,7 +244,7 @@ module logAnalyticsWorkspace 'modules/logAnalyticsWorkspace.bicep' = {
   params: {
     dailyQuotaGb: logAnalyticsDailyQuotaGb
     location: location
-    name: '${sanitizedPrefix}-law'
+    name: 'law-${sanitizedProjectName}-monitoring'
     retentionInDays: logAnalyticsRetentionInDays
   }
 }
@@ -284,7 +263,7 @@ module applicationInsights 'modules/applicationInsights.bicep' = {
   name: 'applicationInsights'
   params: {
     location: location
-    name: '${sanitizedPrefix}-appi'
+    name: 'appi-${sanitizedProjectName}-monitoring'
     retentionInDays: applicationInsightsRetentionInDays
     samplingPercentage: applicationInsightsSamplingPercentage
     workspaceResourceId: logAnalyticsWorkspace.outputs.workspaceId
@@ -295,7 +274,7 @@ module logAnalyticsDataExport 'modules/logAnalyticsDataExport.bicep' = {
   name: 'logAnalyticsDataExport'
   params: {
     enabled: logAnalyticsDataExportEnabled
-    name: '${sanitizedPrefix}-law-storage-export'
+    name: 'de-${sanitizedProjectName}-monitoring'
     storageAccountId: monitoringStorage.outputs.storageAccountId
     tableNames: logAnalyticsDataExportTableNames
     workspaceName: logAnalyticsWorkspace.outputs.name
@@ -309,7 +288,7 @@ module postgresql 'modules/postgresql.bicep' = {
     administratorLoginPassword: postgresqlAdministratorLoginPassword
     backupRetentionDays: postgresqlBackupRetentionDays
     databaseName: postgresqlDatabaseName
-    firewallRules: postgresqlFirewallRules
+    firewallRules: postgresqlFirewallRulesWithNames
     location: location
     publicNetworkAccess: postgresqlPublicNetworkAccess
     serverName: postgresqlServerName
