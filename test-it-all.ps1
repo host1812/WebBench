@@ -927,7 +927,7 @@ function New-RunReportHtml {
                 [pscustomobject]@{
                     Label    = $project.project
                     Value    = $stats.ratePerSecond
-                    Display  = $stats.rate
+                    Display  = "{0}/s" -f ([double]$stats.ratePerSecond).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
                     CssClass = Get-BarFillClass -Status $project.status
                 }
             }
@@ -949,12 +949,9 @@ function New-RunReportHtml {
     )
 
     [void]$builder.AppendLine("    <section class='panel'>")
-    [void]$builder.AppendLine("      <div class='section-header'>")
-    [void]$builder.AppendLine("        <h2>Overview Latency</h2>")
-    [void]$builder.AppendLine("        <div class='metric-picker'>Latency metric <div class='metric-buttons' data-metric-buttons='overview-charts'><button type='button' class='metric-button' data-metric-value='p99'>p99</button><button type='button' class='metric-button active' data-metric-value='p95'>p95</button><button type='button' class='metric-button' data-metric-value='p90'>p90</button><button type='button' class='metric-button' data-metric-value='avg'>avg</button></div></div>")
-    [void]$builder.AppendLine("      </div>")
-    [void]$builder.AppendLine("      <div id='overview-charts' class='chart-grid'>")
-    foreach ($chartHtml in $overviewLatencyChartHtml) {
+    [void]$builder.AppendLine("      <h2>Throughput And Errors</h2>")
+    [void]$builder.AppendLine("      <div class='chart-grid'>")
+    foreach ($chartHtml in $throughputChartHtml) {
         if (-not [string]::IsNullOrWhiteSpace($chartHtml)) {
             [void]$builder.Append($chartHtml)
         }
@@ -963,9 +960,12 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("    </section>")
 
     [void]$builder.AppendLine("    <section class='panel'>")
-    [void]$builder.AppendLine("      <h2>Throughput And Errors</h2>")
-    [void]$builder.AppendLine("      <div class='chart-grid'>")
-    foreach ($chartHtml in $throughputChartHtml) {
+    [void]$builder.AppendLine("      <div class='section-header'>")
+    [void]$builder.AppendLine("        <h2>Overview Latency</h2>")
+    [void]$builder.AppendLine("        <div class='metric-picker'>Latency metric <div class='metric-buttons' data-metric-buttons='overview-charts'><button type='button' class='metric-button' data-metric-value='p99'>p99</button><button type='button' class='metric-button active' data-metric-value='p95'>p95</button><button type='button' class='metric-button' data-metric-value='p90'>p90</button><button type='button' class='metric-button' data-metric-value='avg'>avg</button></div></div>")
+    [void]$builder.AppendLine("      </div>")
+    [void]$builder.AppendLine("      <div id='overview-charts' class='chart-grid'>")
+    foreach ($chartHtml in $overviewLatencyChartHtml) {
         if (-not [string]::IsNullOrWhiteSpace($chartHtml)) {
             [void]$builder.Append($chartHtml)
         }
