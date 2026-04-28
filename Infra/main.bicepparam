@@ -33,8 +33,9 @@ param containerRegistryPushUserObjectId = '1a8f2341-8fb4-4eb2-a259-b0c12f9955a9'
 param postgresqlAdministratorLogin = 'pgadminuser'
 param postgresqlAdministratorLoginPassword = readEnvironmentVariable('POSTGRESQL_ADMIN_PASSWORD')
 param postgresqlVersion = '16'
-param postgresqlSkuName = 'Standard_B1ms'
-param postgresqlSkuTier = 'Burstable'
+// Standard_D32s_v3 is General Purpose with 32 vCores.
+param postgresqlSkuName = 'Standard_D32s_v3'
+param postgresqlSkuTier = 'GeneralPurpose'
 param postgresqlStorageSizeGB = 32
 param postgresqlBackupRetentionDays = 7
 param postgresqlPublicNetworkAccess = 'Enabled'

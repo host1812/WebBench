@@ -21,7 +21,14 @@ param sshPublicKey string
 @description('Source CIDR allowed to connect to SSH, for example 203.0.113.10/32.')
 param allowedSshSourceAddressPrefix string
 
-@description('VM size for the PerfTest load-test VM.')
+@description('VM size for the PerfTest load-test VM. Allowed values are at least 4 vCPU and 8 GiB memory.')
+@allowed([
+  'Standard_F4s_v2'
+  'Standard_D4s_v5'
+  'Standard_D4as_v5'
+  'Standard_B4ms'
+  'Standard_E4s_v5'
+])
 param vmSize string
 
 @description('CIDR for the PerfTest virtual network.')

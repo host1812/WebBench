@@ -105,7 +105,7 @@ $myIp = Invoke-RestMethod https://api.ipify.org
 "$myIp/32"
 ```
 
-The default VM size is `Standard_F4s_v2`, which is 4 vCPU and 8 GiB memory. The template restricts `vmSize` to allowed sizes that meet or exceed that minimum.
+The default API and PerfTest VM size is `Standard_F4s_v2`, which is 4 vCPU and 8 GiB memory. Both templates restrict `vmSize` to allowed sizes that meet or exceed that minimum.
 
 The NSG allows SSH on port `22`, HTTP on port `80`, HTTPS on port `443`, and the books service on port `8080` from the configured source CIDRs.
 
@@ -116,6 +116,8 @@ When PerfTest is deployed, `deploy.ps1` also allows the PerfTest VM public IP to
 PostgreSQL is controlled by the `postgresql*` parameters in `main.bicepparam`. Set `POSTGRESQL_ADMIN_PASSWORD` in `.env` before deploying. The deployment outputs a secure `postgresqlConnectionString` value for service configuration. Secure outputs are intentionally not shown in normal `az deployment group show` output.
 
 The PostgreSQL server name is derived as `pg-<project>-db-<unique-suffix>`, and the database child resource is derived as `db-<project>-api`.
+
+The default PostgreSQL compute is `Standard_D32s_v3` in the `GeneralPurpose` tier. This gives the database 32 vCores; memory is not the sizing driver for this benchmark.
 
 The default PostgreSQL firewall rule allows Azure services to connect. Rule names are normalized during deployment to `fwr-<project>-<rule-name>`.
 
