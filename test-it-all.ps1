@@ -733,9 +733,10 @@ function New-BarChartHtml {
     }
 
     $builder = New-Object System.Text.StringBuilder
+    $barChartAttributes = if ($isMetricSwitchable) { " data-metric-chart='true'" } else { "" }
     [void]$builder.AppendLine("<section class='panel'>")
     [void]$builder.AppendLine(("  <h3>{0}</h3>" -f (ConvertTo-HtmlText -Value $Title)))
-    [void]$builder.AppendLine("  <div class='bar-chart'>")
+    [void]$builder.AppendLine(("  <div class='bar-chart'{0}>" -f $barChartAttributes))
 
     foreach ($item in ($itemList | Sort-Object -Property Value -Descending)) {
         $width = [math]::Max(1, [math]::Round(($item.Value / $maxValue) * 100, 2))
@@ -902,30 +903,24 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("      </table>")
     [void]$builder.AppendLine("    </section>")
 
-    $overviewChartHtml = @()
+    $overviewLatencyChartHtml = @()
+    $throughputChartHtml = @()
 
-    $overviewChartHtml += New-BarChartHtml -Title "Overall HTTP latency - ⬇️ better" -Items @(
+    $overviewLatencyChartHtml += New-BarChartHtml -Title "Overall HTTP latency - ⬇️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqDuration"
             New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Failed Request Rate - ⬇️ better" -Items @(
+    $overviewLatencyChartHtml += New-BarChartHtml -Title "Iteration duration - ⬇️ better" -Items @(
         foreach ($project in $projects) {
-            $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqFailed"
-            if ($null -ne $stats -and $null -ne $stats.rateFraction) {
-                [pscustomobject]@{
-                    Label    = $project.project
-                    Value    = $stats.rateFraction
-                    Display  = $stats.rate
-                    CssClass = Get-BarFillClass -Status $project.status
-                }
-            }
+            $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "iterationDuration"
+            New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "HTTP Requests per Second - ⬆️ better" -Items @(
+    $throughputChartHtml += New-BarChartHtml -Title "HTTP Requests per Second - ⬆️ better" -Items @(
         foreach ($project in $projects) {
             $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqs"
             if ($null -ne $stats -and $null -ne $stats.ratePerSecond) {
@@ -939,20 +934,38 @@ function New-RunReportHtml {
         }
     )
 
-    $overviewChartHtml += New-BarChartHtml -Title "Iteration duration - ⬇️ better" -Items @(
+    $throughputChartHtml += New-BarChartHtml -Title "Failed Request Rate - ⬇️ better" -Items @(
         foreach ($project in $projects) {
-            $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "iterationDuration"
-            New-DurationChartItem -Label $project.project -Stats $stats -Status $project.status
+            $stats = Get-OptionalProperty -InputObject (Get-OptionalProperty -InputObject $project.perfMetrics -Name "overall") -Name "httpReqFailed"
+            if ($null -ne $stats -and $null -ne $stats.rateFraction) {
+                [pscustomobject]@{
+                    Label    = $project.project
+                    Value    = $stats.rateFraction
+                    Display  = $stats.rate
+                    CssClass = Get-BarFillClass -Status $project.status
+                }
+            }
         }
     )
 
     [void]$builder.AppendLine("    <section class='panel'>")
     [void]$builder.AppendLine("      <div class='section-header'>")
-    [void]$builder.AppendLine("        <h2>Overview Charts</h2>")
+    [void]$builder.AppendLine("        <h2>Overview Latency</h2>")
     [void]$builder.AppendLine("        <div class='metric-picker'>Latency metric <div class='metric-buttons' data-metric-buttons='overview-charts'><button type='button' class='metric-button' data-metric-value='p99'>p99</button><button type='button' class='metric-button active' data-metric-value='p95'>p95</button><button type='button' class='metric-button' data-metric-value='p90'>p90</button><button type='button' class='metric-button' data-metric-value='avg'>avg</button></div></div>")
     [void]$builder.AppendLine("      </div>")
     [void]$builder.AppendLine("      <div id='overview-charts' class='chart-grid'>")
-    foreach ($chartHtml in $overviewChartHtml) {
+    foreach ($chartHtml in $overviewLatencyChartHtml) {
+        if (-not [string]::IsNullOrWhiteSpace($chartHtml)) {
+            [void]$builder.Append($chartHtml)
+        }
+    }
+    [void]$builder.AppendLine("      </div>")
+    [void]$builder.AppendLine("    </section>")
+
+    [void]$builder.AppendLine("    <section class='panel'>")
+    [void]$builder.AppendLine("      <h2>Throughput And Errors</h2>")
+    [void]$builder.AppendLine("      <div class='chart-grid'>")
+    foreach ($chartHtml in $throughputChartHtml) {
         if (-not [string]::IsNullOrWhiteSpace($chartHtml)) {
             [void]$builder.Append($chartHtml)
         }
@@ -1023,12 +1036,12 @@ function New-RunReportHtml {
     [void]$builder.AppendLine("      function updateMetricCharts(containerId, metric) {")
     [void]$builder.AppendLine("        const container = document.getElementById(containerId);")
     [void]$builder.AppendLine("        if (!container) return;")
-    [void]$builder.AppendLine("        for (const chart of container.querySelectorAll('.bar-chart')) {")
+    [void]$builder.AppendLine("        for (const chart of container.querySelectorAll('.bar-chart[data-metric-chart]')) {")
     [void]$builder.AppendLine("          const rows = Array.from(chart.querySelectorAll('.bar-row'));")
     [void]$builder.AppendLine("          const rowValues = rows.map((row) => {")
     [void]$builder.AppendLine("            const fill = row.querySelector('.bar-fill');")
     [void]$builder.AppendLine("            const rawValue = fill ? fill.getAttribute('data-' + metric + '-value') : '';")
-    [void]$builder.AppendLine("            const value = rawValue === '' ? NaN : Number(rawValue);")
+    [void]$builder.AppendLine("            const value = rawValue === null || rawValue === '' ? NaN : Number(rawValue);")
     [void]$builder.AppendLine("            return { row, fill, value, display: fill ? fill.getAttribute('data-' + metric + '-display') : '' };")
     [void]$builder.AppendLine("          }).filter((item) => item.fill && Number.isFinite(item.value));")
     [void]$builder.AppendLine("          if (rowValues.length === 0) continue;")
