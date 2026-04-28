@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM rust:1.94-alpine AS builder
-
-RUN apk add --no-cache musl-dev
+FROM rust:1.94-bookworm AS builder
 
 WORKDIR /app
 
@@ -14,7 +12,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked \
     && cp /app/target/release/rust_backend_service /usr/local/bin/rust_backend_service
 
-FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -24,7 +26,5 @@ COPY config ./config
 ENV BOOKSVC_HTTP_ADDRESS=:8080
 
 EXPOSE 8080
-
-USER nonroot:nonroot
 
 ENTRYPOINT ["/app/rust_backend_service"]

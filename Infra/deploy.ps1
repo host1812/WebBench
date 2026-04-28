@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $Subscription,
+    [string] $Subscription = 'b8d7fc1c-6003-4425-baf0-15d8db0e1714',
     [string] $ResourceGroupName = 'rg-WebBench',
     [string] $Location = 'northcentralus',
     [string] $TemplateFile = 'main.bicep',

@@ -1,9 +1,10 @@
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.140.0
+    profiles: ["telemetry"]
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     environment:
-      APPLICATIONINSIGHTS_CONNECTION_STRING: "${APPLICATIONINSIGHTS_CONNECTION_STRING:?APPLICATIONINSIGHTS_CONNECTION_STRING is required}"
+      APPLICATIONINSIGHTS_CONNECTION_STRING: "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
     restart: unless-stopped
@@ -16,14 +17,12 @@ services:
       BOOKSVC_HTTP_ADDRESS: ${BOOKSVC_HTTP_ADDRESS:-:8080}
       BOOKSVC_DATABASE_CONNECTION_STRING: ${BOOKSVC_DATABASE_CONNECTION_STRING}
       BOOKSVC_DATABASE_MAX_CONNECTIONS: ${BOOKSVC_DATABASE_MAX_CONNECTIONS:-10}
-      BOOKSVC_TELEMETRY_ENABLED: ${BOOKSVC_TELEMETRY_ENABLED:-true}
+      BOOKSVC_TELEMETRY_ENABLED: ${BOOKSVC_TELEMETRY_ENABLED:-false}
       BOOKSVC_TELEMETRY_SERVICE_NAME: ${BOOKSVC_TELEMETRY_SERVICE_NAME:-books-service}
       BOOKSVC_TELEMETRY_ENVIRONMENT: ${BOOKSVC_TELEMETRY_ENVIRONMENT:-azure-vm}
       BOOKSVC_TELEMETRY_OTLP_ENDPOINT: ${BOOKSVC_TELEMETRY_OTLP_ENDPOINT:-otel-collector:4318}
     expose:
       - "8080"
-    depends_on:
-      - otel-collector
 
   gateway:
     image: nginx:1.27-alpine

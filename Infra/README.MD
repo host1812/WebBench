@@ -109,15 +109,17 @@ By default, storage export includes common Application Insights tables such as `
 Run the deployment script from this directory. It deploys the main `rg-WebBench` stack and the separate `rg-PerfTest` load-test stack in one run.
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>"
+.\deploy.ps1
 ```
+
+The script defaults to subscription `b8d7fc1c-6003-4425-baf0-15d8db0e1714`. Pass `-Subscription` only when intentionally deploying somewhere else.
 
 The script creates `rg-PerfTest` in `westus3`, captures the PerfTest VM public IP, then creates `rg-WebBench` in `northcentralus` and allows that PerfTest IP to reach HTTPS port `443` on the main VM. It prints both VM public IP addresses.
 
 By default, Azure CLI deployment output is quiet, the script shows deployment progress, and it prints a final summary at the end. Use `-Verbose` to stream what-if output and deployment command details.
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>" -Verbose
+.\deploy.ps1 -Verbose
 ```
 
 The script also updates your local hosts file with the VM name and public IP address. It only changes the entry when the hostname is missing or the IP address changed. On Windows, run PowerShell as administrator to allow the hosts file update.
@@ -125,19 +127,19 @@ The script also updates your local hosts file with the VM name and public IP add
 Use `-SkipWhatIf` if you want to skip the preview.
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipWhatIf
+.\deploy.ps1 -SkipWhatIf
 ```
 
 Use `-SkipPerfTest` if you only want to deploy the main infra stack.
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipPerfTest
+.\deploy.ps1 -SkipPerfTest
 ```
 
 Use `-SkipHostsUpdate` if you do not want to update your local hosts file.
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>" -SkipHostsUpdate
+.\deploy.ps1 -SkipHostsUpdate
 ```
 
 The equivalent Azure CLI commands for the main resource-group deployment are below.
@@ -153,7 +155,7 @@ Login and select the target subscription.
 
 ```powershell
 az login
-az account set --subscription "<subscription-id-or-name>"
+az account set --subscription "b8d7fc1c-6003-4425-baf0-15d8db0e1714"
 ```
 
 Create a resource group.
@@ -257,7 +259,7 @@ $myIp = Invoke-RestMethod https://api.ipify.org
 To override the PerfTest defaults during the combined deployment:
 
 ```powershell
-.\deploy.ps1 -Subscription "<subscription-id-or-name>" -PerfTestResourceGroupName "rg-PerfTest" -PerfTestLocation "westus3"
+.\deploy.ps1 -PerfTestResourceGroupName "rg-PerfTest" -PerfTestLocation "westus3"
 ```
 
 The PerfTest VM bootstrap installs Docker, enables and starts Docker, adds the admin user to the `docker` group, pulls `grafana/k6:latest`, installs `curl`, `jq`, `unzip`, and `git`, creates `/opt/k6-tests`, and prints Docker and k6 versions to `/var/log/loadtest-bootstrap.log`.
