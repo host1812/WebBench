@@ -25,15 +25,15 @@ param allowedBooksServiceSourceAddressPrefix string
 @description('Source CIDR allowed to connect to HTTPS on port 443.')
 param allowedHttpsSourceAddressPrefix string
 
-@description('Optional PerfTest source CIDR allowed to connect to HTTPS on port 443.')
-param allowedPerfTestHttpsSourceAddressPrefix string
+@description('Optional perf VM source CIDR allowed to connect to HTTPS on port 443.')
+param allowedPerfVmHttpsSourceAddressPrefix string
 
 @description('Source CIDR allowed to connect to HTTP on port 80.')
 param allowedHttpSourceAddressPrefix string
 
-var perfTestHttpsRules = empty(allowedPerfTestHttpsSourceAddressPrefix) ? [] : [
+var perfVmHttpsRules = empty(allowedPerfVmHttpsSourceAddressPrefix) ? [] : [
   {
-    name: 'Allow-Https-443-From-PerfTest'
+    name: 'Allow-Https-443-From-Perf'
     properties: {
       priority: 1025
       access: 'Allow'
@@ -41,7 +41,7 @@ var perfTestHttpsRules = empty(allowedPerfTestHttpsSourceAddressPrefix) ? [] : [
       protocol: 'Tcp'
       sourcePortRange: '*'
       destinationPortRange: '443'
-      sourceAddressPrefix: allowedPerfTestHttpsSourceAddressPrefix
+      sourceAddressPrefix: allowedPerfVmHttpsSourceAddressPrefix
       destinationAddressPrefix: '*'
     }
   }
@@ -104,7 +104,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           destinationAddressPrefix: '*'
         }
       }
-    ], perfTestHttpsRules)
+    ], perfVmHttpsRules)
   }
 }
 

@@ -8,12 +8,11 @@ param(
     [string] $Location = 'northcentralus',
     [string] $TemplateFile = 'main.bicep',
     [string] $ParameterFile = 'main.bicepparam',
-    [string] $PerfTestResourceGroupName,
-    [string] $PerfTestLocation = 'westus3',
-    [string] $PerfTestTemplateFile = 'perftest-main.bicep',
-    [string] $PerfTestParameterFile = 'perftest-main.bicepparam',
+    [Alias('PerfTestLocation')]
+    [string] $PerfVmLocation = 'westus3',
     [switch] $SkipWhatIf,
-    [switch] $SkipPerfTest,
+    [Alias('SkipPerfTest')]
+    [switch] $SkipPerfVm,
     [switch] $SkipHostsUpdate
 )
 
@@ -260,21 +259,14 @@ function ConvertTo-ResourceNameToken {
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $templatePath = Join-Path $scriptRoot $TemplateFile
 $parameterPath = Join-Path $scriptRoot $ParameterFile
-$perfTestTemplatePath = Join-Path $scriptRoot $PerfTestTemplateFile
-$perfTestParameterPath = Join-Path $scriptRoot $PerfTestParameterFile
 $environmentPath = Join-Path $scriptRoot '.env'
 $projectNameToken = ConvertTo-ResourceNameToken -Value $ProjectName
 
 if (-not $ResourceGroupName) {
-    $ResourceGroupName = "rg-$projectNameToken-api"
-}
-
-if (-not $PerfTestResourceGroupName) {
-    $PerfTestResourceGroupName = "rg-$projectNameToken-perf"
+    $ResourceGroupName = "rg-$projectNameToken"
 }
 
 [Environment]::SetEnvironmentVariable('PROJECT_NAME', $projectNameToken, 'Process')
-[Environment]::SetEnvironmentVariable('PERFTEST_RESOURCE_GROUP_NAME', $PerfTestResourceGroupName, 'Process')
 
 Set-DeploymentProgress -Status 'Loading environment configuration.'
 Import-DotEnv -Path $environmentPath
@@ -291,16 +283,6 @@ if (-not (Test-Path -LiteralPath $templatePath)) {
 
 if (-not (Test-Path -LiteralPath $parameterPath)) {
     throw "Parameter file not found: $parameterPath"
-}
-
-if (-not $SkipPerfTest) {
-    if (-not (Test-Path -LiteralPath $perfTestTemplatePath)) {
-        throw "PerfTest template file not found: $perfTestTemplatePath"
-    }
-
-    if (-not (Test-Path -LiteralPath $perfTestParameterPath)) {
-        throw "PerfTest parameter file not found: $perfTestParameterPath"
-    }
 }
 
 $accountId = & az account show --query id --output tsv --only-show-errors 2>$null
@@ -325,50 +307,22 @@ if ($Subscription) {
         -Arguments @('account', 'set', '--subscription', $Subscription)
 }
 
-$perfTestOutputs = $null
-$perfTestPublicIpAddress = $null
-
-if (-not $SkipPerfTest) {
-    Set-DeploymentProgress -Status 'Deploying PerfTest environment.'
-    $perfTestCommonArgs = @(
-        '--location', $PerfTestLocation,
-        '--template-file', $perfTestTemplatePath,
-        '--parameters', $perfTestParameterPath,
-        "projectName=$projectNameToken",
-        "location=$PerfTestLocation",
-        "resourceGroupName=$PerfTestResourceGroupName"
-    )
-
-    if (-not $SkipWhatIf) {
-        Invoke-AzCliCommand `
-            -Description 'Running PerfTest subscription-scope what-if.' `
-            -Arguments (@('deployment', 'sub', 'what-if') + $perfTestCommonArgs)
-    }
-
-    $perfTestDeployment = Invoke-AzCliJson `
-        -Description 'Deploying PerfTest subscription-scope template.' `
-        -Arguments (@('deployment', 'sub', 'create') + $perfTestCommonArgs + @('--output', 'json'))
-
-    $perfTestOutputs = $perfTestDeployment.properties.outputs
-    $perfTestPublicIpAddress = $perfTestOutputs.publicIpAddress.value
-}
-
 Set-DeploymentProgress -Status 'Creating or updating main resource group.'
 Invoke-AzCliCommand `
     -Description "Creating or updating resource group $ResourceGroupName in $Location." `
     -Arguments @('group', 'create', '--name', $ResourceGroupName, '--location', $Location, '--output', 'none')
 
-$mainParameterOverrides = @()
-if ($perfTestPublicIpAddress) {
-    $mainParameterOverrides += "allowedPerfTestHttpsSourceAddressPrefix=$perfTestPublicIpAddress/32"
-}
+$deployPerfVm = -not $SkipPerfVm
+$deployPerfVmValue = $deployPerfVm.ToString().ToLowerInvariant()
 
 $mainCommonArgs = @(
     '--resource-group', $ResourceGroupName,
     '--template-file', $templatePath,
     '--parameters', $parameterPath,
-    "projectName=$projectNameToken"
-) + $mainParameterOverrides
+    "projectName=$projectNameToken",
+    "deployPerfVm=$deployPerfVmValue",
+    "perfVmLocation=$PerfVmLocation"
+)
 
 if (-not $SkipWhatIf) {
     Set-DeploymentProgress -Status 'Running main deployment preview.'
@@ -430,18 +384,19 @@ if (-not $SkipHostsUpdate) {
     Update-HostsEntry -HostName $vmName -IpAddress $publicIpAddress
 }
 
-if ($perfTestOutputs) {
+if ($outputs.perfVmPublicIpAddress -and -not [string]::IsNullOrWhiteSpace($outputs.perfVmPublicIpAddress.value)) {
+    $perfVmPublicIpAddress = $outputs.perfVmPublicIpAddress.value
+
     $vmIpRows += [pscustomobject]@{
         Role = 'perf'
-        Name = $perfTestOutputs.vmName.value
-        ResourceGroup = $perfTestOutputs.resourceGroupName.value
-        PublicIp = $perfTestPublicIpAddress
+        Name = $outputs.perfVmName.value
+        ResourceGroup = $ResourceGroupName
+        PublicIp = $perfVmPublicIpAddress
     }
 
-    Add-DeploymentMessage "PerfTest resource group: $($perfTestOutputs.resourceGroupName.value)"
-    Add-DeploymentMessage "PerfTest VM public IP: $perfTestPublicIpAddress"
-    Add-DeploymentMessage "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
-    Add-DeploymentMessage "PerfTest HTTPS source allowed on main VM: $perfTestPublicIpAddress/32"
+    Add-DeploymentMessage "Perf VM public IP: $perfVmPublicIpAddress"
+    Add-DeploymentMessage "Perf VM SSH command: $($outputs.perfVmSshCommand.value)"
+    Add-DeploymentMessage "Perf VM HTTPS source allowed on main VM: $($outputs.perfVmHttpsSourceAddressPrefix.value)"
 }
 
 Write-Progress -Activity $script:ProgressActivity -Completed

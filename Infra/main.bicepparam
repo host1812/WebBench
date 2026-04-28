@@ -10,7 +10,7 @@ param sshPublicKey = readEnvironmentVariable('SSH_PUBLIC_KEY')
 param allowedSshSourceAddressPrefix = '184.16.75.186/32'
 param allowedBooksServiceSourceAddressPrefix = '184.16.75.186/32'
 param allowedHttpsSourceAddressPrefix = '184.16.75.186/32'
-param allowedPerfTestHttpsSourceAddressPrefix = ''
+param allowedPerfVmHttpsSourceAddressPrefix = ''
 param allowedHttpSourceAddressPrefix = '184.16.75.186/32'
 
 // Standard_F4s_v2 is 4 vCPU and 8 GiB memory.
@@ -25,6 +25,15 @@ param imagePublisher = 'Canonical'
 param imageOffer = '0001-com-ubuntu-server-jammy'
 param imageSku = '22_04-lts-gen2'
 param imageVersion = 'latest'
+
+param deployPerfVm = true
+param perfVmLocation = 'westus3'
+param perfVmAllowedSshSourceAddressPrefix = '184.16.75.186/32'
+// Standard_F4s_v2 is 4 vCPU and 8 GiB memory.
+param perfVmSize = 'Standard_F4s_v2'
+param perfVmVnetAddressPrefix = '10.20.0.0/16'
+param perfVmSubnetAddressPrefix = '10.20.1.0/24'
+param perfVmOsDiskSizeGB = 64
 
 param containerRegistrySku = 'Basic'
 param containerRegistryAdminUserEnabled = false

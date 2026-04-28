@@ -8,10 +8,8 @@ The VM uses a user-assigned managed identity. The deployment grants that identit
 
 - `main.bicep` - orchestration template that wires the modules together.
 - `main.bicepparam` - all deployment inputs.
-- `perftest-main.bicep` - subscription-scope template for the dedicated PerfTest load-test environment.
-- `perftest-main.bicepparam` - PerfTest deployment inputs.
 - `.env.example` - template for local secret values.
-- `deploy.ps1` - simple PowerShell deployment wrapper that deploys the main infra and PerfTest environment.
+- `deploy.ps1` - simple PowerShell deployment wrapper that deploys the API resources and optional perf VM.
 - `modules/containerRegistry.bicep` - Azure Container Registry.
 - `modules/managedIdentity.bicep` - user-assigned managed identity.
 - `modules/vnet.bicep` - VNet, subnet, NSG, and SSH rule.
@@ -50,14 +48,14 @@ SSH_PUBLIC_KEY=ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY_COMMENT
 POSTGRESQL_ADMIN_PASSWORD=REPLACE_WITH_STRONG_PASSWORD
 ```
 
-Edit `main.bicepparam` and `perftest-main.bicepparam` for non-secret deployment settings.
+Edit `main.bicepparam` for non-secret deployment settings.
 
 `ProjectName` is required when running `deploy.ps1`. The script normalizes underscores to hyphens and uses the project name to derive resource names.
 
 Main API resource names follow role-specific purposes:
 
 ```text
-rg-<project>-api
+rg-<project>
 vm-<project>-api
 vnet-<project>-network
 subnet-<project>-api
@@ -71,10 +69,9 @@ appi-<project>-monitoring
 de-<project>-monitoring
 ```
 
-PerfTest resource names use the `perf` purpose:
+Perf VM resource names use the `perf` purpose:
 
 ```text
-rg-<project>-perf
 vm-<project>-perf
 vnet-<project>-perf
 subnet-<project>-perf
@@ -105,11 +102,11 @@ $myIp = Invoke-RestMethod https://api.ipify.org
 "$myIp/32"
 ```
 
-The default API and PerfTest VM size is `Standard_F4s_v2`, which is 4 vCPU and 8 GiB memory. Both templates restrict `vmSize` to allowed sizes that meet or exceed that minimum.
+The default API and perf VM size is `Standard_F4s_v2`, which is 4 vCPU and 8 GiB memory. The template restricts both VM size parameters to allowed sizes that meet or exceed that minimum.
 
 The NSG allows SSH on port `22`, HTTP on port `80`, HTTPS on port `443`, and the books service on port `8080` from the configured source CIDRs.
 
-When PerfTest is deployed, `deploy.ps1` also allows the PerfTest VM public IP to reach HTTPS port `443` on the main VM. This lets the load-test VM call the API without opening HTTPS broadly.
+When the perf VM is deployed, `deploy.ps1` also allows the perf VM public IP to reach HTTPS port `443` on the API VM. This lets the load-test VM call the API without opening HTTPS broadly.
 
 `containerRegistryPushUserObjectId` receives the built-in `AcrPush` role on the deployed registry. The VM managed identity receives `AcrPull`.
 
@@ -139,7 +136,7 @@ By default, storage export includes common Application Insights tables such as `
 
 ## Deploy
 
-Run the deployment script from this directory. It deploys the main `rg-<project>-api` stack and the separate `rg-<project>-perf` load-test stack in one run.
+Run the deployment script from this directory. It deploys all resources into one resource group named `rg-<project>`. By default that includes both the API VM and the perf VM.
 
 ```powershell
 .\deploy.ps1 -ProjectName "webbench"
@@ -147,7 +144,7 @@ Run the deployment script from this directory. It deploys the main `rg-<project>
 
 The script defaults to subscription `b8d7fc1c-6003-4425-baf0-15d8db0e1714`. Pass `-Subscription` only when intentionally deploying somewhere else.
 
-The script creates `rg-<project>-perf` in `westus3`, captures the PerfTest VM public IP, then creates `rg-<project>-api` in `northcentralus` and allows that PerfTest IP to reach HTTPS port `443` on the main VM. It prints both VM public IP addresses.
+The script creates `rg-<project>` in `northcentralus`, deploys the API resources, optionally deploys the perf VM resources in `westus3` inside the same resource group, and allows the perf VM IP to reach HTTPS port `443` on the API VM. It prints both VM public IP addresses.
 
 By default, Azure CLI deployment output is quiet, the script shows deployment progress, and it prints a final summary at the end. Use `-Verbose` to stream what-if output and deployment command details.
 
@@ -163,10 +160,10 @@ Use `-SkipWhatIf` if you want to skip the preview.
 .\deploy.ps1 -ProjectName "webbench" -SkipWhatIf
 ```
 
-Use `-SkipPerfTest` if you only want to deploy the main infra stack.
+Use `-SkipPerfVm` if you only want to deploy the API resources without the perf VM.
 
 ```powershell
-.\deploy.ps1 -ProjectName "webbench" -SkipPerfTest
+.\deploy.ps1 -ProjectName "webbench" -SkipPerfVm
 ```
 
 Use `-SkipHostsUpdate` if you do not want to update your local hosts file.
@@ -184,7 +181,7 @@ $env:SSH_PUBLIC_KEY = Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 $env:POSTGRESQL_ADMIN_PASSWORD = "<strong-password>"
 $projectName = "webbench"
 $env:PROJECT_NAME = $projectName
-$apiResourceGroupName = "rg-$projectName-api"
+$resourceGroupName = "rg-$projectName"
 ```
 
 Login and select the target subscription.
@@ -198,7 +195,7 @@ Create a resource group.
 
 ```powershell
 az group create `
-  --name $apiResourceGroupName `
+  --name $resourceGroupName `
   --location northcentralus
 ```
 
@@ -206,7 +203,7 @@ Preview the deployment.
 
 ```powershell
 az deployment group what-if `
-  --resource-group $apiResourceGroupName `
+  --resource-group $resourceGroupName `
   --template-file main.bicep `
   --parameters main.bicepparam projectName=$projectName
 ```
@@ -215,7 +212,7 @@ Deploy.
 
 ```powershell
 az deployment group create `
-  --resource-group $apiResourceGroupName `
+  --resource-group $resourceGroupName `
   --template-file main.bicep `
   --parameters main.bicepparam projectName=$projectName
 ```
@@ -224,7 +221,7 @@ Get the public IP address.
 
 ```powershell
 az deployment group show `
-  --resource-group $apiResourceGroupName `
+  --resource-group $resourceGroupName `
   --name main `
   --query properties.outputs.publicIpAddress.value `
   --output tsv
@@ -234,7 +231,7 @@ Get the deployed ACR login server.
 
 ```powershell
 az deployment group show `
-  --resource-group $apiResourceGroupName `
+  --resource-group $resourceGroupName `
   --name main `
   --query properties.outputs.containerRegistryLoginServer.value `
   --output tsv
@@ -244,7 +241,7 @@ Get the PostgreSQL server host name.
 
 ```powershell
 az deployment group show `
-  --resource-group $apiResourceGroupName `
+  --resource-group $resourceGroupName `
   --name main `
   --query properties.outputs.postgresqlFullyQualifiedDomainName.value `
   --output tsv
@@ -278,32 +275,32 @@ If your first SSH session cannot run Docker without `sudo`, sign out and connect
 Delete the resource group when you no longer need the VM.
 
 ```powershell
-az group delete --name rg-webbench-api --yes
+az group delete --name rg-webbench --yes
 ```
 
-## PerfTest Load-Test VM
+## Perf Load-Test VM
 
-The PerfTest deployment creates a separate resource group named `rg-<project>-perf` in `westus3`. This is intended to simulate additional network distance when testing an existing HTTPS API. It is deployed by `deploy.ps1` unless you pass `-SkipPerfTest`.
+The perf VM is deployed into the same `rg-<project>` resource group as the API resources. Its resources use the `perf` purpose suffix, for example `vm-<project>-perf` and `pip-<project>-perf`. It is deployed by `deploy.ps1` unless you pass `-SkipPerfVm`.
 
-Update `allowedSshSourceAddressPrefix` in `perftest-main.bicepparam` to your public client IP as a `/32` CIDR.
+Update `perfVmAllowedSshSourceAddressPrefix` in `main.bicepparam` to your public client IP as a `/32` CIDR.
 
 ```powershell
 $myIp = Invoke-RestMethod https://api.ipify.org
 "$myIp/32"
 ```
 
-To override the PerfTest defaults during the combined deployment:
+To override the perf VM location during deployment:
 
 ```powershell
-.\deploy.ps1 -ProjectName "webbench" -PerfTestResourceGroupName "rg-webbench-perf" -PerfTestLocation "westus3"
+.\deploy.ps1 -ProjectName "webbench" -PerfVmLocation "westus3"
 ```
 
-The PerfTest VM bootstrap installs Docker, enables and starts Docker, adds the admin user to the `docker` group, pulls `grafana/k6:latest`, installs `curl`, `jq`, `unzip`, and `git`, creates `/opt/k6-tests`, and prints Docker and k6 versions to `/var/log/loadtest-bootstrap.log`.
+The perf VM bootstrap installs Docker, enables and starts Docker, adds the admin user to the `docker` group, pulls `grafana/k6:latest`, installs `curl`, `jq`, `unzip`, and `git`, creates `/opt/k6-tests`, and prints Docker and k6 versions to `/var/log/loadtest-bootstrap.log`.
 
 Connect to the VM after deployment.
 
 ```powershell
-ssh -i $env:USERPROFILE\.ssh\id_ed25519 azureuser@<perftest-vm-public-ip>
+ssh -i $env:USERPROFILE\.ssh\id_ed25519 azureuser@<perf-vm-public-ip>
 ```
 
 Run the load test from Docker.
@@ -312,8 +309,8 @@ Run the load test from Docker.
 docker run --rm -i grafana/k6:latest run - < /opt/k6-tests/test.js
 ```
 
-Clean up the PerfTest environment.
+Clean up the whole environment.
 
 ```powershell
-az group delete --name rg-webbench-perf --yes
+az group delete --name rg-webbench --yes
 ```

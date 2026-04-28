@@ -22,8 +22,8 @@ param allowedBooksServiceSourceAddressPrefix string
 @description('Source CIDR allowed to connect to HTTPS on port 443, for example 203.0.113.10/32.')
 param allowedHttpsSourceAddressPrefix string
 
-@description('Optional PerfTest source CIDR allowed to connect to HTTPS on port 443, for example 203.0.113.10/32.')
-param allowedPerfTestHttpsSourceAddressPrefix string
+@description('Optional perf VM source CIDR allowed to connect to HTTPS on port 443, for example 203.0.113.10/32.')
+param allowedPerfVmHttpsSourceAddressPrefix string
 
 @description('Source CIDR allowed to connect to HTTP on port 80, for example 203.0.113.10/32.')
 param allowedHttpSourceAddressPrefix string
@@ -62,6 +62,35 @@ param imageSku string
 
 @description('Ubuntu image version.')
 param imageVersion string
+
+@description('Whether to deploy the perf/load-test VM in the same resource group.')
+param deployPerfVm bool
+
+@description('Azure region for the perf/load-test VM resources.')
+param perfVmLocation string
+
+@description('Source CIDR allowed to connect to SSH on the perf/load-test VM, for example 203.0.113.10/32.')
+param perfVmAllowedSshSourceAddressPrefix string
+
+@description('VM size for the perf/load-test VM. Allowed values are at least 4 vCPU and 8 GiB memory.')
+@allowed([
+  'Standard_F4s_v2'
+  'Standard_D4s_v5'
+  'Standard_D4as_v5'
+  'Standard_B4ms'
+  'Standard_E4s_v5'
+])
+param perfVmSize string
+
+@description('CIDR for the perf/load-test virtual network.')
+param perfVmVnetAddressPrefix string
+
+@description('CIDR for the perf/load-test VM subnet.')
+param perfVmSubnetAddressPrefix string
+
+@description('OS disk size in GiB for the perf/load-test VM.')
+@minValue(30)
+param perfVmOsDiskSizeGB int
 
 @description('Container registry SKU.')
 @allowed([
@@ -145,6 +174,33 @@ var monitoringStorageAccountName = '${monitoringStorageBaseName}${uniqueNameSuff
 var managedIdentityName = 'mi-${sanitizedProjectName}-api'
 var managedIdentityNameSeed = resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', managedIdentityName)
 var cloudInit = installDocker ? replace(loadTextContent('./scripts/cloud-init-docker.yaml'), '__ADMIN_USERNAME__', adminUsername) : '#cloud-config\n'
+var perfVmCloudInit = replace(loadTextContent('./scripts/cloud-init-loadtest.yaml'), '__ADMIN_USERNAME__', adminUsername)
+var effectivePerfVmHttpsSourceAddressPrefix = deployPerfVm ? '${perfVmEnvironment!.outputs.publicIpAddress}/32' : allowedPerfVmHttpsSourceAddressPrefix
+
+module perfVmEnvironment 'modules/loadTestEnvironment.bicep' = if (deployPerfVm) {
+  name: 'perfVmEnvironment'
+  params: {
+    adminUsername: adminUsername
+    allowedSshSourceAddressPrefix: perfVmAllowedSshSourceAddressPrefix
+    customData: perfVmCloudInit
+    imageOffer: imageOffer
+    imagePublisher: imagePublisher
+    imageSku: imageSku
+    imageVersion: imageVersion
+    location: perfVmLocation
+    networkInterfaceName: 'nic-${sanitizedProjectName}-perf'
+    nsgName: 'nsg-${sanitizedProjectName}-perf'
+    osDiskSizeGB: perfVmOsDiskSizeGB
+    publicIpName: 'pip-${sanitizedProjectName}-perf'
+    sshPublicKey: sshPublicKey
+    subnetAddressPrefix: perfVmSubnetAddressPrefix
+    subnetName: 'subnet-${sanitizedProjectName}-perf'
+    vmName: 'vm-${sanitizedProjectName}-perf'
+    vmSize: perfVmSize
+    vnetAddressPrefix: perfVmVnetAddressPrefix
+    vnetName: 'vnet-${sanitizedProjectName}-perf'
+  }
+}
 
 module acr 'modules/containerRegistry.bicep' = {
   name: 'containerRegistry'
@@ -170,7 +226,7 @@ module vnet 'modules/vnet.bicep' = {
     allowedBooksServiceSourceAddressPrefix: allowedBooksServiceSourceAddressPrefix
     allowedHttpSourceAddressPrefix: allowedHttpSourceAddressPrefix
     allowedHttpsSourceAddressPrefix: allowedHttpsSourceAddressPrefix
-    allowedPerfTestHttpsSourceAddressPrefix: allowedPerfTestHttpsSourceAddressPrefix
+    allowedPerfVmHttpsSourceAddressPrefix: effectivePerfVmHttpsSourceAddressPrefix
     allowedSshSourceAddressPrefix: allowedSshSourceAddressPrefix
     location: location
     nsgName: 'nsg-${sanitizedProjectName}-api'
@@ -302,6 +358,10 @@ module postgresql 'modules/postgresql.bicep' = {
 output vmName string = vm.outputs.name
 output adminUsername string = adminUsername
 output publicIpAddress string = publicIp.outputs.publicIpAddress
+output perfVmName string = deployPerfVm ? perfVmEnvironment!.outputs.vmName : ''
+output perfVmPublicIpAddress string = deployPerfVm ? perfVmEnvironment!.outputs.publicIpAddress : ''
+output perfVmHttpsSourceAddressPrefix string = deployPerfVm ? effectivePerfVmHttpsSourceAddressPrefix : ''
+output perfVmSshCommand string = deployPerfVm ? 'ssh -i <path-to-private-key> ${adminUsername}@${perfVmEnvironment!.outputs.publicIpAddress}' : ''
 output managedIdentityName string = managedIdentity.outputs.name
 output managedIdentityPrincipalId string = managedIdentity.outputs.principalId
 output managedIdentityClientId string = managedIdentity.outputs.clientId
