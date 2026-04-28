@@ -237,6 +237,17 @@ function Assert-RequiredEnvironmentValue {
     }
 }
 
+function Write-VmIpTable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [array] $Rows
+    )
+
+    Write-Host ''
+    Write-Host 'VM IPs:'
+    $Rows | Format-Table -AutoSize | Out-String | Write-Host
+}
+
 function ConvertTo-ResourceNameToken {
     param(
         [Parameter(Mandatory = $true)]
@@ -375,6 +386,14 @@ $outputs = $deployment.properties.outputs
 $vmName = $outputs.vmName.value
 $publicIpAddress = $outputs.publicIpAddress.value
 $sshCommand = $outputs.sshCommand.value
+$vmIpRows = @(
+    [pscustomobject]@{
+        Role = 'api'
+        Name = $vmName
+        ResourceGroup = $ResourceGroupName
+        PublicIp = $publicIpAddress
+    }
+)
 
 Add-DeploymentMessage "VM public IP: $publicIpAddress"
 Add-DeploymentMessage "SSH command: $sshCommand"
@@ -412,6 +431,13 @@ if (-not $SkipHostsUpdate) {
 }
 
 if ($perfTestOutputs) {
+    $vmIpRows += [pscustomobject]@{
+        Role = 'perf'
+        Name = $perfTestOutputs.vmName.value
+        ResourceGroup = $perfTestOutputs.resourceGroupName.value
+        PublicIp = $perfTestPublicIpAddress
+    }
+
     Add-DeploymentMessage "PerfTest resource group: $($perfTestOutputs.resourceGroupName.value)"
     Add-DeploymentMessage "PerfTest VM public IP: $perfTestPublicIpAddress"
     Add-DeploymentMessage "PerfTest SSH command: $($perfTestOutputs.sshCommand.value)"
@@ -419,6 +445,8 @@ if ($perfTestOutputs) {
 }
 
 Write-Progress -Activity $script:ProgressActivity -Completed
+
+Write-VmIpTable -Rows $vmIpRows
 
 Write-Host 'Deployment summary:'
 foreach ($message in $script:DeploymentMessages) {
