@@ -18,6 +18,7 @@ use application::{
         queries::{BookQueryHandler, BookQueryService},
     },
     health::{HealthQueryHandler, HealthQueryService},
+    stores::queries::{StoreQueryHandler, StoreQueryService},
 };
 use config::AppConfig;
 use error::AppError;
@@ -27,6 +28,7 @@ use infrastructure::{
     persistence::{
         postgres_author_repository::PostgresAuthorRepository,
         postgres_book_repository::PostgresBookRepository,
+        postgres_store_repository::PostgresStoreRepository,
     },
 };
 use presentation::http::{AppState, router::build_router};
@@ -42,6 +44,7 @@ pub async fn run() -> Result<(), AppError> {
 
     let author_repository = Arc::new(PostgresAuthorRepository::new(pool.clone()));
     let book_repository = Arc::new(PostgresBookRepository::new(pool.clone()));
+    let store_repository = Arc::new(PostgresStoreRepository::new(pool.clone()));
     let database_health_check = Arc::new(PostgresHealthCheck::new(pool));
 
     let health_queries: Arc<dyn HealthQueryService> =
@@ -63,6 +66,8 @@ pub async fn run() -> Result<(), AppError> {
         book_repository.clone(),
         author_repository,
     ));
+    let store_queries: Arc<dyn StoreQueryService> =
+        Arc::new(StoreQueryHandler::new(store_repository));
 
     let state = AppState::new(
         health_queries,
@@ -70,6 +75,7 @@ pub async fn run() -> Result<(), AppError> {
         author_queries,
         book_commands,
         book_queries,
+        store_queries,
     );
     let app = build_router(state);
 

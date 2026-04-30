@@ -45,6 +45,7 @@ fn resource_routes() -> Router<AppState> {
             "/books/{book_id}",
             get(get_book).put(update_book).delete(delete_book),
         )
+        .route("/stores", get(list_stores))
 }
 
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
@@ -162,6 +163,11 @@ async fn delete_book(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn list_stores(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    let stores = state.store_queries.list_stores().await?;
+    Ok(Json(stores))
+}
+
 fn health_timeout() -> Duration {
     Duration::from_secs(2)
 }
@@ -225,6 +231,7 @@ mod tests {
                 DependencyHealthDto, HealthChecksDto, HealthQueryService, HealthReportDto,
                 HealthStatus,
             },
+            stores::{StoreDto, queries::StoreQueryService},
         },
         domain::{
             author::AuthorId,
@@ -501,6 +508,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn store_routes_call_injected_services_and_return_json() {
+        assert_store_routes_call_injected_services_and_return_json("").await;
+    }
+
+    #[tokio::test]
+    async fn versioned_store_routes_call_injected_services_and_return_json() {
+        assert_store_routes_call_injected_services_and_return_json("/api/v1").await;
+    }
+
+    async fn assert_store_routes_call_injected_services_and_return_json(prefix: &str) {
+        let calls = Calls::default();
+        let app = test_app(calls.clone());
+
+        let list_response = app
+            .oneshot(empty_request(Method::GET, &format!("{prefix}/stores")))
+            .await
+            .unwrap();
+
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let body = response_json(list_response).await;
+        assert_eq!(body[0]["name"], json!("Listed Store"));
+        assert_eq!(body[0]["inventory"][0]["title"], json!("Listed Book"));
+
+        assert_eq!(calls.snapshot(), vec!["store_queries.list_stores"]);
+    }
+
+    #[tokio::test]
     async fn book_list_route_passes_requested_limit() {
         let calls = Calls::default();
         let app = test_app(calls.clone());
@@ -607,7 +641,10 @@ mod tests {
         let book_commands = Arc::new(MockBookCommandService {
             calls: calls.clone(),
         });
-        let book_queries = Arc::new(MockBookQueryService { calls });
+        let book_queries = Arc::new(MockBookQueryService {
+            calls: calls.clone(),
+        });
+        let store_queries = Arc::new(MockStoreQueryService { calls });
 
         build_router(AppState::new(
             health_queries,
@@ -615,6 +652,7 @@ mod tests {
             author_queries,
             book_commands,
             book_queries,
+            store_queries,
         ))
     }
 
@@ -854,6 +892,18 @@ mod tests {
         }
     }
 
+    struct MockStoreQueryService {
+        calls: Calls,
+    }
+
+    #[async_trait]
+    impl StoreQueryService for MockStoreQueryService {
+        async fn list_stores(&self) -> Result<Vec<StoreDto>, AppError> {
+            self.calls.record("store_queries.list_stores");
+            Ok(vec![store_dto()])
+        }
+    }
+
     fn author_dto(id: Uuid, name: &str, bio: Option<String>) -> AuthorDto {
         AuthorDto {
             id,
@@ -882,12 +932,36 @@ mod tests {
         }
     }
 
+    fn store_dto() -> StoreDto {
+        StoreDto {
+            id: store_id(),
+            name: "Listed Store".to_owned(),
+            description: "Neighborhood bookstore".to_owned(),
+            address: "123 Main St".to_owned(),
+            phone_number: "555-0100".to_owned(),
+            web_site: Some("https://listed-store.example".to_owned()),
+            inventory: vec![book_dto(
+                book_id(),
+                author_id(),
+                "Listed Book",
+                "listed-isbn",
+                Some(2024),
+            )],
+            created_at: timestamp(),
+            updated_at: timestamp(),
+        }
+    }
+
     fn author_id() -> Uuid {
         Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap()
     }
 
     fn book_id() -> Uuid {
         Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap()
+    }
+
+    fn store_id() -> Uuid {
+        Uuid::parse_str("33333333-3333-3333-3333-333333333333").unwrap()
     }
 
     fn timestamp() -> OffsetDateTime {

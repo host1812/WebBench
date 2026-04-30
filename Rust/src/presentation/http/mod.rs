@@ -6,6 +6,7 @@ use crate::application::{
     authors::{commands::AuthorCommandService, queries::AuthorQueryService},
     books::{commands::BookCommandService, queries::BookQueryService},
     health::HealthQueryService,
+    stores::queries::StoreQueryService,
 };
 
 #[derive(Clone)]
@@ -15,6 +16,7 @@ pub struct AppState {
     pub author_queries: Arc<dyn AuthorQueryService>,
     pub book_commands: Arc<dyn BookCommandService>,
     pub book_queries: Arc<dyn BookQueryService>,
+    pub store_queries: Arc<dyn StoreQueryService>,
 }
 
 impl AppState {
@@ -24,6 +26,7 @@ impl AppState {
         author_queries: Arc<dyn AuthorQueryService>,
         book_commands: Arc<dyn BookCommandService>,
         book_queries: Arc<dyn BookQueryService>,
+        store_queries: Arc<dyn StoreQueryService>,
     ) -> Self {
         Self {
             health_queries,
@@ -31,6 +34,7 @@ impl AppState {
             author_queries,
             book_commands,
             book_queries,
+            store_queries,
         }
     }
 }

@@ -1,6 +1,6 @@
 # Rust Backend Service
 
-Basic REST backend for `authors` and `books` using:
+Basic REST backend for `authors`, `books`, and `stores` using:
 
 - `axum` for HTTP
 - `tokio` for async runtime
@@ -75,9 +75,11 @@ GET    /api/v1/books?limit=10000
 GET    /api/v1/books/{book_id}
 PUT    /api/v1/books/{book_id}
 DELETE /api/v1/books/{book_id}
+
+GET    /api/v1/stores
 ```
 
-The original unversioned `/authors` and `/books` routes are still mounted as backward-compatible aliases.
+The original unversioned `/authors`, `/books`, and `/stores` routes are still mounted as backward-compatible aliases.
 
 Book list endpoints accept an optional `limit` query parameter. Valid range is `1` to `100000`; default is `10000`.
 

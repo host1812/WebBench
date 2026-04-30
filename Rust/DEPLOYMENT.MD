@@ -135,6 +135,22 @@ public.books
   published_year int4 null
   created_at timestamptz not null
   updated_at timestamptz not null
+
+public.stores
+  id uuid primary key
+  name text not null
+  description text not null
+  address text not null
+  phone_number text not null
+  web_site text null
+  created_at timestamptz not null
+  updated_at timestamptz not null
+
+public.store_inventory
+  store_id uuid not null references public.stores(id)
+  book_id uuid not null references public.books(id)
+  created_at timestamptz not null
+  primary key (store_id, book_id)
 ```
 
 If the schema changes, update the managed database first using your external schema-management process, then deploy a compatible API image.
