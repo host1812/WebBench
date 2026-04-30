@@ -37,7 +37,9 @@ Copy-Item .env.example .env
 Set these production values before deploying:
 
 ```text
-BOOKSVC_IMAGE=your-registry.azurecr.io/books-service-golang-simple:latest
+ACR_LOGIN_SERVER=your-registry.azurecr.io
+IMAGE_NAME=books-service-golang-simple
+IMAGE_TAG=latest
 BOOKSVC_DATABASE_CONNECTION_STRING=postgres://user:password@your-managed-postgres-host:5432/books_simple?sslmode=require
 BOOKSVC_DATABASE_MAX_CONNECTIONS=10
 BOOKSVC_SERVICE_NAME=books-service
@@ -135,7 +137,7 @@ az acr login --name <your-acr-name>
 
 The managed identity assigned to the VM must have `AcrPull` permission on the registry.
 
-The ACR name is hardcoded in `scripts/deploy.ps1` as `$AcrName`.
+The ACR login server is read from `ACR_LOGIN_SERVER` in `.env`; the script derives the ACR name from that value.
 
 ## HTTPS
 

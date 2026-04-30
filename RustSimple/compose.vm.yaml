@@ -1,6 +1,6 @@
 services:
   migrate:
-    image: ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/${IMAGE_NAME:?IMAGE_NAME is required}:${IMAGE_TAG:-latest}
     restart: "no"
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -14,7 +14,7 @@ services:
       - ./certs:/app/certs:ro
 
   api:
-    image: ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+    image: ${ACR_LOGIN_SERVER:?ACR_LOGIN_SERVER is required}/${IMAGE_NAME:?IMAGE_NAME is required}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}

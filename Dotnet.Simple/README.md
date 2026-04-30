@@ -46,10 +46,10 @@ docker run --rm -p 8080:8080 --env-file .env books-service-dotnet-simple:local s
 
 ## Deployment
 
-Push to Azure Container Registry:
+Build and push to Azure Container Registry:
 
 ```powershell
-.\scripts\push-acr.ps1
+.\scripts\build.ps1
 ```
 
 Deploy to a VM:

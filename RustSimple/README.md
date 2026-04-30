@@ -17,10 +17,9 @@ All service and deployment settings live in `.env`. Start from `.env.example` an
 ```env
 VM_IP=127.0.0.1
 VM_USER=azureuser
-REMOTE_DIR=/opt/books-service
-ACR_NAME=acrwebbench4sayzpoemqsyo
-IMAGE_REGISTRY=acrwebbench4sayzpoemqsyo.azurecr.io
-IMAGE_NAME=books-service-rust
+REMOTE_DIR=/opt/books-service-rust-simple
+ACR_LOGIN_SERVER=acrwebbench4sayzpoemqsyo.azurecr.io
+IMAGE_NAME=books-service-rust-simple
 IMAGE_TAG=latest
 PUBLIC_HTTPS_PORT=443
 SERVER_HOST=0.0.0.0
@@ -42,7 +41,7 @@ docker build -t books-service-rust:local .
 ## Deploy
 
 1. Update `.env`.
-2. Push the image with `scripts/push-acr.ps1`.
+2. Build and push the image with `scripts/build.ps1`.
 3. Deploy with `scripts/deploy.ps1`.
 
 `deploy.ps1` removes existing Docker Compose workloads on the VM, copies `.env` and `compose.vm.yaml`, generates a self-signed certificate, runs migrations explicitly against the Azure-managed PostgreSQL instance from `DATABASE_URL`, and then starts the HTTPS Rust service.

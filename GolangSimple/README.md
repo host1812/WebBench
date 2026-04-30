@@ -77,13 +77,13 @@ Build only:
 docker build -t books-service-golang-simple:local .
 ```
 
-Push to Azure Container Registry:
+Build and push to Azure Container Registry:
 
 ```powershell
-.\scripts\push-acr.ps1
+.\scripts\build.ps1
 ```
 
-The script pushes the built image with a timestamp tag and `latest`.
+The script reads `ACR_LOGIN_SERVER`, `IMAGE_NAME`, and `IMAGE_TAG` from `.env`, then pushes the image with the configured tag and a timestamp tag.
 
 VM deployment:
 

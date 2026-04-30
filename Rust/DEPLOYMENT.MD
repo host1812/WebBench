@@ -31,7 +31,9 @@ The Rust source code is not required on the VM when the image already exists in 
 Create `/opt/books-service/.env` from [deployment.env.example](deployment.env.example). Do not commit the real `.env`.
 
 ```env
-BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:replace-with-version-tag
+ACR_LOGIN_SERVER=yourregistry.azurecr.io
+IMAGE_NAME=books-service-rust
+IMAGE_TAG=replace-with-version-tag
 BOOKSVC_HTTP_ADDRESS=:8080
 BOOKSVC_DATABASE_CONNECTION_STRING=postgres://db_user:db_password@your-postgres.postgres.database.azure.com:5432/webbench?sslmode=require
 BOOKSVC_DATABASE_MAX_CONNECTIONS=10
@@ -76,7 +78,7 @@ The script:
 - Generates a self-signed certificate before startup.
 - Logs into Azure with the VM managed identity.
 - Logs into ACR.
-- Pulls the configured `BOOKSVC_IMAGE`.
+- Pulls the image configured by `ACR_LOGIN_SERVER`, `IMAGE_NAME`, and `IMAGE_TAG`.
 - Starts `gateway`, which starts `api`.
 - Tries to replace the self-signed certificate with a Let's Encrypt certificate.
 
@@ -90,7 +92,7 @@ If deploying manually:
 cd /opt/books-service
 az login --identity
 az acr login --name yourregistry
-docker pull "$BOOKSVC_IMAGE"
+docker pull "${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
 docker compose pull
 docker compose up -d gateway
 docker compose ps
@@ -167,10 +169,12 @@ If `BOOKSVC_TELEMETRY_ENABLED=true` and the OTLP endpoint is missing, the API fa
 
 ## 8. Normal Release Flow
 
-For each new image version, update `BOOKSVC_IMAGE` in `.env`:
+For each new image version, update `IMAGE_TAG` in `.env`:
 
 ```env
-BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:2026-04-21.1
+ACR_LOGIN_SERVER=yourregistry.azurecr.io
+IMAGE_NAME=books-service-rust
+IMAGE_TAG=2026-04-21.1
 ```
 
 Then redeploy:
@@ -184,10 +188,10 @@ docker compose logs -f api
 
 ## 9. Rollback
 
-Set `BOOKSVC_IMAGE` back to the previous image tag:
+Set `IMAGE_TAG` back to the previous image tag:
 
 ```env
-BOOKSVC_IMAGE=yourregistry.azurecr.io/books-service-rust:previous-tag
+IMAGE_TAG=previous-tag
 ```
 
 Then restart:

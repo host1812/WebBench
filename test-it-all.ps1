@@ -1081,7 +1081,7 @@ if ($projects.Count -eq 0) {
     throw "No deployable projects were found."
 }
 
-$buildCommand = ".\scripts\push-acr.ps1{0}" -f $childVerboseArgument
+$buildCommand = ".\scripts\build.ps1{0}" -f $childVerboseArgument
 $deployCommand = ".\scripts\deploy.ps1 -VmIp ""{0}""{1}" -f $ServiceVmIp, $childVerboseArgument
 $perfCommand = ".\scripts\run-k6.ps1 -VmIp {0} -BaseUrl {1} -SkipTlsVerify -Vus {2} -Duration {3}{4}" -f $LoadTestVmIp, $BaseUrl, $Vus, $Duration, $childVerboseArgument
 $idleDurationSeconds = Convert-DurationToSeconds -Value $IdleDuration

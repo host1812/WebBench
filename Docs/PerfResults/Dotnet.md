@@ -461,7 +461,7 @@ Relevant sources:
 - [Dotnet.Aot/src/AuthorsBooks.Api/AuthorsBooks.Api.csproj](../../Dotnet.Aot/src/AuthorsBooks.Api/AuthorsBooks.Api.csproj)
 - [Dotnet.Aot/Dockerfile](../../Dotnet.Aot/Dockerfile)
 - [Dotnet.Aot/.env.example](../../Dotnet.Aot/.env.example)
-- [Dotnet.Aot/scripts/push-acr.ps1](../../Dotnet.Aot/scripts/push-acr.ps1)
+- [Dotnet.Aot/scripts/build.ps1](../../Dotnet.Aot/scripts/build.ps1)
 - [Dotnet.Aot/scripts/deploy.ps1](../../Dotnet.Aot/scripts/deploy.ps1)
 
 What changed:

@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${BOOKSVC_IMAGE:-rust-backend-service:local}
+    image: ${ACR_LOGIN_SERVER:-local}/${IMAGE_NAME:-books-service-rust}:${IMAGE_TAG:-local}
     environment:
       BOOKSVC_HTTP_ADDRESS: ${BOOKSVC_HTTP_ADDRESS:-:8080}
       BOOKSVC_DATABASE_CONNECTION_STRING: ${LOCAL_DATABASE_CONNECTION_STRING}
