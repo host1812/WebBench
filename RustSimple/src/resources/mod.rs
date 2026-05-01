@@ -1,5 +1,6 @@
 pub mod authors;
 pub mod books;
+pub mod stores;
 
 use axum::Router;
 
@@ -9,4 +10,5 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .nest("/authors", authors::router())
         .nest("/books", books::router())
+        .nest("/stores", stores::router())
 }

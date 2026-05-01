@@ -1,6 +1,6 @@
 # rust-simple
 
-Basic Rust backend service for managing `authors` and `books` with PostgreSQL, `axum`, `sqlx`, Docker Compose, and direct HTTPS from the Rust process.
+Basic Rust backend service for managing `authors`, `books`, and `stores` with PostgreSQL, `axum`, `sqlx`, Docker Compose, and direct HTTPS from the Rust process.
 
 ## Stack
 
@@ -59,5 +59,8 @@ docker build -t books-service-rust:local .
 - `GET /api/v1/books/:id`
 - `PUT /api/v1/books/:id`
 - `DELETE /api/v1/books/:id`
+- `GET /api/v1/stores`
 
 For `GET /api/v1/books`, `limit` defaults to `10000` and must be between `1` and `100000`.
+
+`GET /api/v1/stores` returns each store with address, name, description, phone number, optional website, and a nested `books` inventory list.
