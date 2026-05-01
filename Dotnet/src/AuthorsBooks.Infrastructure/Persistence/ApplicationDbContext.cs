@@ -1,6 +1,7 @@
 using AuthorsBooks.Application.Abstractions.Persistence;
 using AuthorsBooks.Domain.Authors;
 using AuthorsBooks.Domain.Books;
+using AuthorsBooks.Domain.Stores;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthorsBooks.Infrastructure.Persistence;
@@ -11,6 +12,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Author> Authors => Set<Author>();
 
     public DbSet<Book> Books => Set<Book>();
+
+    public DbSet<Store> Stores => Set<Store>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

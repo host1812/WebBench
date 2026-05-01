@@ -36,6 +36,7 @@ app.MapServiceEndpoints();
 var apiV1 = app.MapGroup("/api/v1");
 apiV1.MapAuthorEndpoints();
 apiV1.MapBookEndpoints();
+apiV1.MapStoreEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

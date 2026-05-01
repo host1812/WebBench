@@ -16,6 +16,7 @@ public sealed class EndpointRegistrationTests
         var apiV1 = app.MapGroup("/api/v1");
         apiV1.MapAuthorEndpoints();
         apiV1.MapBookEndpoints();
+        apiV1.MapStoreEndpoints();
 
         var endpoints = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(dataSource => dataSource.Endpoints)
@@ -29,6 +30,7 @@ public sealed class EndpointRegistrationTests
         Assert.Contains("/api/v1/authors/{authorId:guid}", endpoints);
         Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/books/", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/api/v1/books/{bookId:guid}", endpoints);
+        Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/stores", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/stores/", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(endpoints, route => string.Equals(route, "/api/v1/authors/{authorId:guid}/books", StringComparison.OrdinalIgnoreCase) || string.Equals(route, "/api/v1/authors/{authorId:guid}/books/", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/api/v1/authors/{authorId:guid}/books/{bookId:guid}", endpoints);
     }

@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AuthorsBooks.Domain.Stores;
+using AuthorsBooks.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AuthorsBooks.IntegrationTests.Api;
 
@@ -131,6 +135,31 @@ public sealed class AuthorBookApiTests
         Assert.Single(books!);
     }
 
+    [Fact]
+    public async Task Api_stores_endpoint_returns_store_inventory()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var author = await CreateAuthorAsync(client, "Store Author");
+        var book = await CreateBookAsync(client, author.Id, "Shelf Book");
+        await CreateStoreAsync(factory, book.Id);
+
+        var stores = await client.GetFromJsonAsync<List<StoreResponse>>("/api/v1/stores");
+
+        Assert.NotNull(stores);
+        var store = Assert.Single(stores!);
+        Assert.Equal("Downtown Books", store.Name);
+        Assert.Equal("123 Main Street", store.Address);
+        Assert.Equal("Local book shop", store.Description);
+        Assert.Equal("317-555-0100", store.PhoneNumber);
+        Assert.Equal("https://downtown.example", store.Website);
+        var inventoryBook = Assert.Single(store.Inventory);
+        Assert.Equal(book.Id, inventoryBook.Id);
+        Assert.Equal(author.Id, inventoryBook.AuthorId);
+        Assert.Equal("Store Author", inventoryBook.AuthorName);
+    }
+
     private static async Task<AuthorDetailsResponse> CreateAuthorAsync(HttpClient client, string name)
     {
         var response = await client.PostAsJsonAsync("/api/v1/authors", new CreateAuthorRequest(name, $"{name} bio"));
@@ -154,6 +183,25 @@ public sealed class AuthorBookApiTests
         return book!;
     }
 
+    private static async Task CreateStoreAsync(TestWebApplicationFactory factory, Guid bookId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var book = await dbContext.Books.SingleAsync(candidate => candidate.Id == bookId);
+        var now = DateTimeOffset.UtcNow;
+        var store = Store.Create(
+            "123 Main Street",
+            "Downtown Books",
+            "Local book shop",
+            "317-555-0100",
+            "https://downtown.example",
+            now);
+
+        store.AddBook(book, now);
+        dbContext.Stores.Add(store);
+        await dbContext.SaveChangesAsync();
+    }
+
     private sealed record CreateAuthorRequest(string Name, string? Bio);
 
     private sealed record CreateBookRequest(string Title, int? PublicationYear, string? Isbn);
@@ -169,4 +217,13 @@ public sealed class AuthorBookApiTests
     private sealed record BookResponse(Guid Id, Guid AuthorId, string AuthorName, string Title, int? PublicationYear, string Isbn);
 
     private sealed record AuthorDetailsResponse(Guid Id, string Name, string Bio, IReadOnlyList<BookResponse> Books);
+
+    private sealed record StoreResponse(
+        Guid Id,
+        string Address,
+        string Name,
+        string Description,
+        string PhoneNumber,
+        string Website,
+        IReadOnlyList<BookResponse> Inventory);
 }

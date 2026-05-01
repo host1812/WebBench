@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AuthorsBooks.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -105,6 +106,74 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("books", "public");
             });
 
+        modelBuilder.Entity("AuthorsBooks.Domain.Stores.Store", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedNever()
+                    .HasColumnType("uuid")
+                    .HasColumnName("id");
+
+                b.Property<string>("Address")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("address");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("created_at");
+
+                b.Property<string>("Description")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("description");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("name");
+
+                b.Property<string>("PhoneNumber")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("phone_number");
+
+                b.Property<DateTimeOffset>("UpdatedAtUtc")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("updated_at");
+
+                b.Property<string>("Website")
+                    .IsRequired()
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("text")
+                    .HasColumnName("website")
+                    .HasDefaultValue("");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Name")
+                    .HasDatabaseName("idx_stores_name");
+
+                b.ToTable("stores", "public");
+            });
+
+        modelBuilder.SharedTypeEntity<Dictionary<string, object>>("store_books", b =>
+            {
+                b.Property<Guid>("store_id")
+                    .HasColumnType("uuid")
+                    .HasColumnName("store_id");
+
+                b.Property<Guid>("book_id")
+                    .HasColumnType("uuid")
+                    .HasColumnName("book_id");
+
+                b.HasKey("store_id", "book_id");
+
+                b.HasIndex("book_id")
+                    .HasDatabaseName("idx_store_books_book_id");
+
+                b.ToTable("store_books", "public");
+            });
+
         modelBuilder.Entity("AuthorsBooks.Domain.Books.Book", b =>
             {
                 b.HasOne("AuthorsBooks.Domain.Authors.Author", null)
@@ -114,9 +183,30 @@ partial class ApplicationDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
             });
 
+        modelBuilder.SharedTypeEntity<Dictionary<string, object>>("store_books", b =>
+            {
+                b.HasOne("AuthorsBooks.Domain.Books.Book", null)
+                    .WithMany()
+                    .HasForeignKey("book_id")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("AuthorsBooks.Domain.Stores.Store", null)
+                    .WithMany("Inventory")
+                    .HasForeignKey("store_id")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("AuthorsBooks.Domain.Authors.Author", b =>
             {
                 b.Navigation("Books")
+                    .UsePropertyAccessMode(PropertyAccessMode.Field);
+            });
+
+        modelBuilder.Entity("AuthorsBooks.Domain.Stores.Store", b =>
+            {
+                b.Navigation("Inventory")
                     .UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 #pragma warning restore 612, 618

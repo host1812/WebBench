@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthorRepository, AuthorRepository>();
         services.AddScoped<IAuthorReadRepository, AuthorReadRepository>();
         services.AddScoped<IBookReadRepository, BookReadRepository>();
+        services.AddScoped<IStoreReadRepository, StoreReadRepository>();
         services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<ApplicationDbContext>());
 
         services.AddOpenTelemetry();
