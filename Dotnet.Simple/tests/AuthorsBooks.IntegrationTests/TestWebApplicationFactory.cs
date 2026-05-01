@@ -41,6 +41,35 @@ internal sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
         private readonly Lock syncRoot = new();
         private readonly Dictionary<Guid, AuthorState> authors = [];
         private readonly Dictionary<Guid, BookResponse> books = [];
+        private readonly Dictionary<Guid, StoreState> stores = [];
+
+        public FakeBooksDb()
+        {
+            var now = DateTimeOffset.UtcNow;
+            var firstStore = new StoreResponse(
+                Guid.CreateVersion7(),
+                "North Star Books",
+                "Neighborhood shop with a broad classic literature selection.",
+                "101 Market Street, Indianapolis, IN 46204",
+                "+1-317-555-0101",
+                "https://northstarbooks.example",
+                [],
+                now,
+                now);
+            var secondStore = new StoreResponse(
+                Guid.CreateVersion7(),
+                "Riverbend Reading Room",
+                "Independent bookstore focused on fiction, essays, and local events.",
+                "42 River Road, Bloomington, IN 47401",
+                "+1-812-555-0102",
+                null,
+                [],
+                now,
+                now);
+
+            stores[firstStore.Id] = new StoreState(firstStore);
+            stores[secondStore.Id] = new StoreState(secondStore);
+        }
 
         public Task<bool> CanConnectAsync(CancellationToken cancellationToken) => Task.FromResult(true);
 
@@ -110,6 +139,10 @@ internal sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
                 foreach (var bookId in state.BookIds)
                 {
                     books.Remove(bookId);
+                    foreach (var store in stores.Values)
+                    {
+                        store.BookIds.Remove(bookId);
+                    }
                 }
 
                 return Task.FromResult(true);
@@ -136,6 +169,7 @@ internal sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
                 var book = new BookResponse(Guid.CreateVersion7(), input.AuthorId, input.Title, input.Isbn, input.PublishedYear, now, now);
                 books[book.Id] = book;
                 state.BookIds.Add(book.Id);
+                stores.Values.First().BookIds.Add(book.Id);
 
                 return Task.FromResult<BookResponse?>(book);
             }
@@ -217,13 +251,56 @@ internal sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
                 }
 
                 authors[book.AuthorId].BookIds.Remove(bookId);
+                foreach (var store in stores.Values)
+                {
+                    store.BookIds.Remove(bookId);
+                }
+
                 return Task.FromResult(true);
             }
         }
 
+        public Task<StoreResponse[]> ListStoresAsync(CancellationToken cancellationToken)
+        {
+            lock (syncRoot)
+            {
+                return Task.FromResult(stores.Values
+                    .Select(ToStoreResponse)
+                    .OrderBy(store => store.Name, StringComparer.Ordinal)
+                    .ThenBy(store => store.CreatedAt)
+                    .ToArray());
+            }
+        }
+
+        public Task<StoreResponse?> GetStoreAsync(Guid storeId, CancellationToken cancellationToken)
+        {
+            lock (syncRoot)
+            {
+                return Task.FromResult(stores.TryGetValue(storeId, out var store)
+                    ? ToStoreResponse(store)
+                    : null);
+            }
+        }
+
+        private StoreResponse ToStoreResponse(StoreState state) =>
+            state.Store with
+            {
+                Books = state.BookIds
+                    .Select(bookId => books[bookId])
+                    .OrderBy(book => book.Title, StringComparer.Ordinal)
+                    .ToArray(),
+            };
+
         private sealed class AuthorState(AuthorResponse author)
         {
             public AuthorResponse Author { get; set; } = author;
+
+            public HashSet<Guid> BookIds { get; } = [];
+        }
+
+        private sealed class StoreState(StoreResponse store)
+        {
+            public StoreResponse Store { get; } = store;
 
             public HashSet<Guid> BookIds { get; } = [];
         }

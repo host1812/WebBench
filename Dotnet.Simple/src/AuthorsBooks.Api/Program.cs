@@ -78,6 +78,9 @@ apiV1.MapGet("/books/{id:guid}", GetBookAsync);
 apiV1.MapPut("/books/{id:guid}", UpdateBookAsync);
 apiV1.MapDelete("/books/{id:guid}", DeleteBookAsync);
 
+apiV1.MapGet("/stores", ListStoresAsync);
+apiV1.MapGet("/stores/{id:guid}", GetStoreAsync);
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
@@ -242,6 +245,17 @@ static async Task<IResult> DeleteBookAsync(Guid id, IBooksDb database, Cancellat
     return deleted
         ? TypedResults.NoContent()
         : TypedResults.NotFound(new ErrorResponse("resource not found"));
+}
+
+static async Task<StoreResponse[]> ListStoresAsync(IBooksDb database, CancellationToken cancellationToken) =>
+    await database.ListStoresAsync(cancellationToken);
+
+static async Task<IResult> GetStoreAsync(Guid id, IBooksDb database, CancellationToken cancellationToken)
+{
+    var store = await database.GetStoreAsync(id, cancellationToken);
+    return store is null
+        ? TypedResults.NotFound(new ErrorResponse("resource not found"))
+        : TypedResults.Ok(store);
 }
 
 public partial class Program;

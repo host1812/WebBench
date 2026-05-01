@@ -30,6 +30,17 @@ public sealed record BookResponse(
     [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt);
 
+public sealed record StoreResponse(
+    Guid Id,
+    string Name,
+    string Description,
+    string Address,
+    [property: JsonPropertyName("phone_number")] string PhoneNumber,
+    [property: JsonPropertyName("web_site")] string? WebSite,
+    BookResponse[] Books,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt);
+
 public sealed record CreateAuthorRequest(string? Name, string? Bio);
 
 public sealed record UpdateAuthorRequest(string? Name, string? Bio);

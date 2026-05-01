@@ -29,4 +29,8 @@ public interface IBooksDb
     Task<BookResponse?> UpdateBookAsync(Guid bookId, BookWriteInput input, DateTimeOffset now, CancellationToken cancellationToken);
 
     Task<bool> DeleteBookAsync(Guid bookId, CancellationToken cancellationToken);
+
+    Task<StoreResponse[]> ListStoresAsync(CancellationToken cancellationToken);
+
+    Task<StoreResponse?> GetStoreAsync(Guid storeId, CancellationToken cancellationToken);
 }

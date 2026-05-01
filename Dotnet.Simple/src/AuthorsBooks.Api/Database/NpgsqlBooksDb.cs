@@ -241,6 +241,66 @@ public sealed class NpgsqlBooksDb(
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
+    public Task<StoreResponse[]> ListStoresAsync(CancellationToken cancellationToken) =>
+        ListStoresAsync(
+            """
+            SELECT
+                stores.id,
+                stores.name,
+                stores.description,
+                stores.address,
+                stores.phone_number,
+                stores.web_site,
+                stores.created_at,
+                stores.updated_at,
+                books.id,
+                books.author_id,
+                books.title,
+                books.isbn,
+                books.published_year,
+                books.created_at,
+                books.updated_at
+            FROM stores
+            LEFT JOIN store_books ON store_books.store_id = stores.id
+            LEFT JOIN books ON books.id = store_books.book_id
+            ORDER BY stores.name ASC, stores.created_at ASC, books.title ASC;
+            """,
+            static (_, _) => { },
+            cancellationToken);
+
+    public async Task<StoreResponse?> GetStoreAsync(Guid storeId, CancellationToken cancellationToken)
+    {
+        var stores = await ListStoresAsync(
+            """
+            SELECT
+                stores.id,
+                stores.name,
+                stores.description,
+                stores.address,
+                stores.phone_number,
+                stores.web_site,
+                stores.created_at,
+                stores.updated_at,
+                books.id,
+                books.author_id,
+                books.title,
+                books.isbn,
+                books.published_year,
+                books.created_at,
+                books.updated_at
+            FROM stores
+            LEFT JOIN store_books ON store_books.store_id = stores.id
+            LEFT JOIN books ON books.id = store_books.book_id
+            WHERE stores.id = $1
+            ORDER BY stores.name ASC, stores.created_at ASC, books.title ASC;
+            """,
+            static (command, requestStoreId) => command.Parameters.AddWithValue(requestStoreId),
+            cancellationToken,
+            storeId);
+
+        return stores.Length == 0 ? null : stores[0];
+    }
+
     private async Task<BookResponse[]> ListBooksAsync(
         string sql,
         Action<NpgsqlCommand, int, Guid> addParameters,
@@ -263,6 +323,38 @@ public sealed class NpgsqlBooksDb(
         return [.. books];
     }
 
+    private async Task<StoreResponse[]> ListStoresAsync(
+        string sql,
+        Action<NpgsqlCommand, Guid> addParameters,
+        CancellationToken cancellationToken,
+        Guid storeId = default)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        addParameters(command, storeId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var stores = new List<StoreAccumulator>();
+        StoreAccumulator? current = null;
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var currentStoreId = reader.GetGuid(0);
+            if (current?.Id != currentStoreId)
+            {
+                current = ReadStore(reader);
+                stores.Add(current);
+            }
+
+            if (!reader.IsDBNull(8))
+            {
+                current.Books.Add(ReadBook(reader, offset: 8));
+            }
+        }
+
+        return stores.Select(static store => store.ToResponse()).ToArray();
+    }
+
     private static AuthorResponse ReadAuthor(NpgsqlDataReader reader) =>
         new(
             reader.GetGuid(0),
@@ -280,4 +372,43 @@ public sealed class NpgsqlBooksDb(
             reader.IsDBNull(4) ? null : reader.GetInt32(4),
             reader.GetFieldValue<DateTimeOffset>(5),
             reader.GetFieldValue<DateTimeOffset>(6));
+
+    private static BookResponse ReadBook(NpgsqlDataReader reader, int offset) =>
+        new(
+            reader.GetGuid(offset),
+            reader.GetGuid(offset + 1),
+            reader.GetString(offset + 2),
+            reader.GetString(offset + 3),
+            reader.IsDBNull(offset + 4) ? null : reader.GetInt32(offset + 4),
+            reader.GetFieldValue<DateTimeOffset>(offset + 5),
+            reader.GetFieldValue<DateTimeOffset>(offset + 6));
+
+    private static StoreAccumulator ReadStore(NpgsqlDataReader reader) =>
+        new(
+            reader.GetGuid(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetString(5),
+            reader.GetFieldValue<DateTimeOffset>(6),
+            reader.GetFieldValue<DateTimeOffset>(7));
+
+    private sealed class StoreAccumulator(
+        Guid id,
+        string name,
+        string description,
+        string address,
+        string phoneNumber,
+        string? webSite,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt)
+    {
+        public Guid Id { get; } = id;
+
+        public List<BookResponse> Books { get; } = [];
+
+        public StoreResponse ToResponse() =>
+            new(Id, name, description, address, phoneNumber, webSite, [.. Books], createdAt, updatedAt);
+    }
 }

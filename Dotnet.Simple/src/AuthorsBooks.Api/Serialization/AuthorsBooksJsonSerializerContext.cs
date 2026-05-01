@@ -14,6 +14,8 @@ namespace AuthorsBooks.Api.Serialization;
 [JsonSerializable(typeof(AuthorResponse[]))]
 [JsonSerializable(typeof(BookResponse))]
 [JsonSerializable(typeof(BookResponse[]))]
+[JsonSerializable(typeof(StoreResponse))]
+[JsonSerializable(typeof(StoreResponse[]))]
 [JsonSerializable(typeof(CreateAuthorRequest))]
 [JsonSerializable(typeof(UpdateAuthorRequest))]
 [JsonSerializable(typeof(CreateBookRequest))]

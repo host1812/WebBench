@@ -135,6 +135,31 @@ public sealed class AuthorBookApiTests
         Assert.Single(books!);
     }
 
+    [Fact]
+    public async Task Api_stores_endpoint_returns_stores_with_inventory()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var author = await CreateAuthorAsync(client, "Store Author");
+        var book = await CreateBookAsync(client, author.Id, "Store Inventory Book");
+
+        var stores = await client.GetFromJsonAsync<StoreResponse[]>("/api/v1/stores", JsonOptions);
+
+        Assert.NotNull(stores);
+        Assert.Equal(2, stores!.Length);
+        Assert.Equal("North Star Books", stores[0].Name);
+        Assert.NotEmpty(stores[0].Address);
+        Assert.NotEmpty(stores[0].PhoneNumber);
+        Assert.Contains(stores[0].Books, storeBook => storeBook.Id == book.Id);
+
+        var fetchedStore = await client.GetFromJsonAsync<StoreResponse>($"/api/v1/stores/{stores[0].Id}", JsonOptions);
+
+        Assert.NotNull(fetchedStore);
+        Assert.Equal(stores[0].Id, fetchedStore!.Id);
+        Assert.Contains(fetchedStore.Books, storeBook => storeBook.Id == book.Id);
+    }
+
     private static async Task<AuthorResponse> CreateAuthorAsync(HttpClient client, string name)
     {
         var response = await client.PostAsJsonAsync("/api/v1/authors", new CreateAuthorRequest(name, $"{name} bio"), JsonOptions);

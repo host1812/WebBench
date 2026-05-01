@@ -15,6 +15,7 @@ public sealed class DatabaseMigrator(
         new("001_initial_schema", "AuthorsBooks.Api.Sql.001_initial_schema.sql"),
         new("002_seed_catalog", "AuthorsBooks.Api.Sql.002_seed_catalog.up.sql"),
         new("003_seed_more_books", "AuthorsBooks.Api.Sql.003_seed_more_books.up.sql"),
+        new("004_add_stores", "AuthorsBooks.Api.Sql.004_add_stores.up.sql"),
     ];
 
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
