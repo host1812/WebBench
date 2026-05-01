@@ -72,6 +72,18 @@ type bookResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type storeResponse struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Address     string         `json:"address"`
+	PhoneNumber string         `json:"phone_number"`
+	Website     *string        `json:"website,omitempty"`
+	Inventory   []bookResponse `json:"inventory"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
 type componentHealthResponse struct {
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
@@ -196,6 +208,9 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/books/{id}", a.getBook)
 	mux.HandleFunc("PUT /api/v1/books/{id}", a.updateBook)
 	mux.HandleFunc("DELETE /api/v1/books/{id}", a.deleteBook)
+
+	mux.HandleFunc("GET /api/v1/stores", a.listStores)
+	mux.HandleFunc("GET /api/v1/stores/{id}", a.getStore)
 
 	return requestLogging(a.logger, recoverJSON(a.logger, mux))
 }
@@ -631,6 +646,65 @@ func (a *app) deleteBook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *app) listStores(w http.ResponseWriter, r *http.Request) {
+	stores, err := a.queryStores(r.Context(), `
+		SELECT id, name, description, address, phone_number, website, created_at, updated_at
+		FROM stores
+		ORDER BY name ASC, created_at ASC
+	`)
+	if err != nil {
+		a.writeError(w, r, err, "list stores query")
+		return
+	}
+
+	if err := a.loadStoreInventory(r.Context(), stores, `
+		SELECT sb.store_id, b.id, b.author_id, b.title, b.isbn, b.published_year, b.created_at, b.updated_at
+		FROM store_books sb
+		JOIN books b ON b.id = sb.book_id
+		ORDER BY sb.store_id ASC, b.title ASC
+	`); err != nil {
+		a.writeError(w, r, err, "list stores inventory query")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stores)
+}
+
+func (a *app) getStore(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"), "invalid id")
+	if err != nil {
+		a.writeError(w, r, err, "get store parse id")
+		return
+	}
+
+	stores, err := a.queryStores(r.Context(), `
+		SELECT id, name, description, address, phone_number, website, created_at, updated_at
+		FROM stores
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		a.writeError(w, r, err, "get store query")
+		return
+	}
+	if len(stores) == 0 {
+		a.writeError(w, r, errNotFound, "get store not found")
+		return
+	}
+
+	if err := a.loadStoreInventory(r.Context(), stores, `
+		SELECT sb.store_id, b.id, b.author_id, b.title, b.isbn, b.published_year, b.created_at, b.updated_at
+		FROM store_books sb
+		JOIN books b ON b.id = sb.book_id
+		WHERE sb.store_id = $1
+		ORDER BY b.title ASC
+	`, id); err != nil {
+		a.writeError(w, r, err, "get store inventory query")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stores[0])
+}
+
 func (a *app) authorExists(ctx context.Context, id uuid.UUID) (bool, error) {
 	var exists int
 	err := a.db.QueryRow(ctx, `SELECT 1 FROM authors WHERE id = $1`, id).Scan(&exists)
@@ -698,6 +772,90 @@ func (a *app) queryBooks(ctx context.Context, sql string, args ...any) ([]bookRe
 	}
 
 	return books, nil
+}
+
+func (a *app) queryStores(ctx context.Context, sql string, args ...any) ([]storeResponse, error) {
+	rows, err := a.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	stores := make([]storeResponse, 0)
+	for rows.Next() {
+		var (
+			store   storeResponse
+			website pgtype.Text
+		)
+		if err := rows.Scan(
+			&store.ID,
+			&store.Name,
+			&store.Description,
+			&store.Address,
+			&store.PhoneNumber,
+			&website,
+			&store.CreatedAt,
+			&store.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		store.Website = textPtr(website)
+		store.Inventory = make([]bookResponse, 0)
+		stores = append(stores, store)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return stores, nil
+}
+
+func (a *app) loadStoreInventory(ctx context.Context, stores []storeResponse, sql string, args ...any) error {
+	if len(stores) == 0 {
+		return nil
+	}
+
+	storeIndexes := make(map[string]int, len(stores))
+	for i := range stores {
+		storeIndexes[stores[i].ID] = i
+	}
+
+	rows, err := a.db.Query(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			storeID       string
+			book          bookResponse
+			publishedYear pgtype.Int4
+		)
+		if err := rows.Scan(
+			&storeID,
+			&book.ID,
+			&book.AuthorID,
+			&book.Title,
+			&book.ISBN,
+			&publishedYear,
+			&book.CreatedAt,
+			&book.UpdatedAt,
+		); err != nil {
+			return err
+		}
+		storeIndex, ok := storeIndexes[storeID]
+		if !ok {
+			continue
+		}
+		book.PublishedYear = publishedYearPtr(publishedYear)
+		stores[storeIndex].Inventory = append(stores[storeIndex].Inventory, book)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func loadConfig() (config, error) {
@@ -800,6 +958,14 @@ func publishedYearPtr(value pgtype.Int4) *int {
 	}
 	year := int(value.Int32)
 	return &year
+}
+
+func textPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	text := value.String
+	return &text
 }
 
 func decodeJSON(r *http.Request, dst any) error {

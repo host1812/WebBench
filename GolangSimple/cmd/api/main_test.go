@@ -56,3 +56,16 @@ func TestRoutesReturnBadRequestBeforeDatabaseWork(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
 	}
 }
+
+func TestStoreRoutesReturnBadRequestBeforeDatabaseWork(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := newApp(nil, logger, "books-service-test").routes()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/stores/not-a-uuid", nil)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}

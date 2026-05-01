@@ -83,6 +83,8 @@ The current migration files are:
 002_seed_catalog.down.sql
 003_seed_more_books.up.sql
 003_seed_more_books.down.sql
+004_add_stores.up.sql
+004_add_stores.down.sql
 ```
 
 Rollback one migration:

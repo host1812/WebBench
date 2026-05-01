@@ -115,5 +115,7 @@ Book list endpoints accept `limit` from `1` to `100000`. The default is `10000`.
 - `GET /api/v1/books/{id}`
 - `PUT /api/v1/books/{id}`
 - `DELETE /api/v1/books/{id}`
+- `GET /api/v1/stores`
+- `GET /api/v1/stores/{id}`
 - `GET /health`
 - `GET /api/v1/health`
