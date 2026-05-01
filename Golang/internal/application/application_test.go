@@ -33,12 +33,14 @@ func (p healthPinger) Ping(ctx context.Context) error {
 type memoryStore struct {
 	authors map[uuid.UUID]domain.Author
 	books   map[uuid.UUID]domain.Book
+	stores  map[uuid.UUID]domain.Store
 }
 
 func newMemoryStore() *memoryStore {
 	return &memoryStore{
 		authors: map[uuid.UUID]domain.Author{},
 		books:   map[uuid.UUID]domain.Book{},
+		stores:  map[uuid.UUID]domain.Store{},
 	}
 }
 
@@ -144,6 +146,21 @@ func (s memoryBookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID, o
 	return books, nil
 }
 
+type memoryStoreQueryStore struct {
+	*memoryStore
+}
+
+func (s memoryStoreQueryStore) List(ctx context.Context) ([]domain.Store, error) {
+	stores := make([]domain.Store, 0, len(s.stores))
+	for _, store := range s.stores {
+		stores = append(stores, store)
+	}
+	sort.Slice(stores, func(i, j int) bool {
+		return stores[i].Name < stores[j].Name
+	})
+	return stores, nil
+}
+
 func TestCQRSFlowCreatesAndQueriesAuthorBooks(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
@@ -234,6 +251,37 @@ func TestBookQueriesValidateLimit(t *testing.T) {
 	_, err := bookQueries.List(context.Background(), application.BookListOptions{Limit: application.MaxBookListLimit + 1})
 
 	require.True(t, errors.Is(err, application.ErrInvalidInput))
+}
+
+func TestStoreQueriesListStoresWithInventory(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
+	book := domain.Book{
+		ID:        uuid.New(),
+		AuthorID:  uuid.New(),
+		Title:     "Beloved",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	store.stores[uuid.New()] = domain.Store{
+		ID:          uuid.New(),
+		Name:        "Northside Books",
+		Description: "Neighborhood shop",
+		Address:     "101 N Meridian St",
+		PhoneNumber: "+1-317-555-0101",
+		Inventory:   []domain.Book{book},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	queries := application.NewStoreQueryHandler(memoryStoreQueryStore{memoryStore: store})
+
+	stores, err := queries.List(ctx)
+
+	require.NoError(t, err)
+	require.Len(t, stores, 1)
+	require.Equal(t, "Northside Books", stores[0].Name)
+	require.Equal(t, book.ID, stores[0].Inventory[0].ID)
 }
 
 func TestCreateBookRequiresExistingAuthor(t *testing.T) {

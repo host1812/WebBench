@@ -29,3 +29,7 @@ type BookQueryStore interface {
 	List(ctx context.Context, options BookListOptions) ([]domain.Book, error)
 	ListByAuthor(ctx context.Context, authorID uuid.UUID, options BookListOptions) ([]domain.Book, error)
 }
+
+type StoreQueryStore interface {
+	List(ctx context.Context) ([]domain.Store, error)
+}

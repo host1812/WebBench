@@ -141,6 +141,41 @@ func (s *bookStore) ListByAuthor(ctx context.Context, authorID uuid.UUID, option
 	return books, nil
 }
 
+type storeStore struct {
+	stores []domain.Store
+}
+
+func newStoreStore() *storeStore {
+	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
+	website := "https://northside-books.example.com"
+	return &storeStore{stores: []domain.Store{
+		{
+			ID:          uuid.New(),
+			Name:        "Northside Books",
+			Description: "Neighborhood bookstore",
+			Address:     "101 N Meridian St",
+			PhoneNumber: "+1-317-555-0101",
+			Website:     &website,
+			Inventory: []domain.Book{
+				{
+					ID:        uuid.New(),
+					AuthorID:  uuid.New(),
+					Title:     "Seed Book",
+					ISBN:      "9780000000001",
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}}
+}
+
+func (s *storeStore) List(ctx context.Context) ([]domain.Store, error) {
+	return s.stores, nil
+}
+
 type authorResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -150,6 +185,12 @@ type bookResponse struct {
 	ID       string `json:"id"`
 	AuthorID string `json:"author_id"`
 	Title    string `json:"title"`
+}
+
+type storeResponse struct {
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Inventory []bookResponse `json:"inventory"`
 }
 
 type healthResponse struct {
@@ -170,6 +211,7 @@ func newTestRouterWithHealthError(healthErr error) *gin.Engine {
 	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
 	authors := newAuthorStore()
 	books := newBookStore()
+	stores := newStoreStore()
 	return httpapi.NewRouter(
 		config.Config{
 			Telemetry: config.TelemetryConfig{
@@ -181,6 +223,7 @@ func newTestRouterWithHealthError(healthErr error) *gin.Engine {
 		application.NewAuthorQueryHandler(authors, books),
 		application.NewBookCommandHandler(books, books, authors, testClock{now: now}),
 		application.NewBookQueryHandler(books),
+		application.NewStoreQueryHandler(stores),
 		application.NewHealthQueryHandler(testPinger{err: healthErr}),
 	)
 }
@@ -318,6 +361,20 @@ func TestRouterSupportsBookListLimit(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal(authorBooks.Body.Bytes(), &books))
 	require.Len(t, books, 1)
+}
+
+func TestRouterListsStoresWithInventory(t *testing.T) {
+	router := newTestRouter()
+
+	recorder := performRequest(router, http.MethodGet, "/api/v1/stores", "")
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stores []storeResponse
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &stores))
+	require.Len(t, stores, 1)
+	require.Equal(t, "Northside Books", stores[0].Name)
+	require.Len(t, stores[0].Inventory, 1)
+	require.Equal(t, "Seed Book", stores[0].Inventory[0].Title)
 }
 
 func TestRouterReturnsBadRequestForInvalidBodyAndQuery(t *testing.T) {

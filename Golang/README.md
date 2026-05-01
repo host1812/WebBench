@@ -1,6 +1,6 @@
 # Books Service
 
-A basic Go backend service for managing authors and books with Gin, pgx, Viper, Uber Fx, DDD-style domain boundaries, and CQRS-oriented application handlers.
+A basic Go backend service for managing authors, books, and stores with Gin, pgx, Viper, Uber Fx, DDD-style domain boundaries, and CQRS-oriented application handlers.
 
 ## Run
 
@@ -116,5 +116,6 @@ Book list endpoints accept `limit` from `1` to `100000`. The default is `10000`.
 - `GET /api/v1/books/{id}`
 - `PUT /api/v1/books/{id}`
 - `DELETE /api/v1/books/{id}`
+- `GET /api/v1/stores`
 - `GET /health`
 - `GET /api/v1/health`

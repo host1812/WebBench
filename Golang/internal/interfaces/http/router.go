@@ -35,6 +35,18 @@ type bookResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type storeResponse struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Address     string         `json:"address"`
+	PhoneNumber string         `json:"phone_number"`
+	Website     *string        `json:"website,omitempty"`
+	Inventory   []bookResponse `json:"inventory"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
 type healthResponse struct {
 	Status  string                        `json:"status"`
 	Service string                        `json:"service"`
@@ -76,6 +88,7 @@ type handlers struct {
 	authorQueries  *application.AuthorQueryHandler
 	bookCommands   *application.BookCommandHandler
 	bookQueries    *application.BookQueryHandler
+	storeQueries   *application.StoreQueryHandler
 	healthQueries  *application.HealthQueryHandler
 }
 
@@ -85,6 +98,7 @@ func NewRouter(
 	authorQueries *application.AuthorQueryHandler,
 	bookCommands *application.BookCommandHandler,
 	bookQueries *application.BookQueryHandler,
+	storeQueries *application.StoreQueryHandler,
 	healthQueries *application.HealthQueryHandler,
 ) *gin.Engine {
 	router := gin.New()
@@ -96,6 +110,7 @@ func NewRouter(
 		authorQueries:  authorQueries,
 		bookCommands:   bookCommands,
 		bookQueries:    bookQueries,
+		storeQueries:   storeQueries,
 		healthQueries:  healthQueries,
 	}
 
@@ -118,6 +133,9 @@ func NewRouter(
 	books.GET("/:id", h.getBook)
 	books.PUT("/:id", h.updateBook)
 	books.DELETE("/:id", h.deleteBook)
+
+	stores := v1.Group("/stores")
+	stores.GET("", h.listStores)
 
 	return router
 }
@@ -389,6 +407,15 @@ func (h handlers) deleteBook(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h handlers) listStores(c *gin.Context) {
+	stores, err := h.storeQueries.List(c.Request.Context())
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toStoreResponses(stores))
+}
+
 func parseID(c *gin.Context, param string) (uuid.UUID, bool) {
 	id, err := uuid.Parse(c.Param(param))
 	if err != nil {
@@ -460,6 +487,28 @@ func toBookResponses(books []domain.Book) []bookResponse {
 	response := make([]bookResponse, 0, len(books))
 	for _, book := range books {
 		response = append(response, toBookResponse(book))
+	}
+	return response
+}
+
+func toStoreResponse(store domain.Store) storeResponse {
+	return storeResponse{
+		ID:          store.ID.String(),
+		Name:        store.Name,
+		Description: store.Description,
+		Address:     store.Address,
+		PhoneNumber: store.PhoneNumber,
+		Website:     store.Website,
+		Inventory:   toBookResponses(store.Inventory),
+		CreatedAt:   store.CreatedAt,
+		UpdatedAt:   store.UpdatedAt,
+	}
+}
+
+func toStoreResponses(stores []domain.Store) []storeResponse {
+	response := make([]storeResponse, 0, len(stores))
+	for _, store := range stores {
+		response = append(response, toStoreResponse(store))
 	}
 	return response
 }

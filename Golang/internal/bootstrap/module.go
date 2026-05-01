@@ -19,6 +19,7 @@ func Module() fx.Option {
 			application.NewAuthorQueryHandler,
 			application.NewBookCommandHandler,
 			application.NewBookQueryHandler,
+			application.NewStoreQueryHandler,
 			application.NewHealthQueryHandler,
 			fx.Annotate(
 				postgres.NewPool,
@@ -34,6 +35,10 @@ func Module() fx.Option {
 				postgres.NewBookRepository,
 				fx.As(new(application.BookCommandStore)),
 				fx.As(new(application.BookQueryStore)),
+			),
+			fx.Annotate(
+				postgres.NewStoreRepository,
+				fx.As(new(application.StoreQueryStore)),
 			),
 			httpapi.NewRouter,
 			httpapi.NewHTTPServer,
